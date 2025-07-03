@@ -11,6 +11,7 @@
 * [Installation](installation.md)
 * [Extension and rules](extension-and-rules.md)
 * [Docs research](docs-research.md)
+* [Components](components.md)
 
 ## Storecake Api
 
