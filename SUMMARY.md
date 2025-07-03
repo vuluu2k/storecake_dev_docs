@@ -10,7 +10,6 @@
 
 * [Installation](installation.md)
 * [Extension and rules](extension-and-rules.md)
-* [Page](page.md)
 * [Docs research (recommend)](docs-research-recommend.md)
 
 ## Storecake Api

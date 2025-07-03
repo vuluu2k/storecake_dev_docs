@@ -18,7 +18,7 @@ npm run setup:husky
 chmod +x .husky/pre-commit
 ```
 
-3. Install \[i18n-ally]\([https://marketplace.visualstudio.com/items?itemName=Lokalise.i18n-ally](https://marketplace.visualstudio.com/items?itemName=Lokalise.i18n-ally))
+3. Install [i18n-ally](https://marketplace.visualstudio.com/items?itemName=Lokalise.i18n-ally)
 
 In config for project .vscode/settings.json
 
@@ -41,3 +41,4 @@ In config for project .vscode/settings.json
 "i18n-ally.sortCompare": "locale",
 "i18n-ally.annotationInPlace": false,
 ```
+
