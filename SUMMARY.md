@@ -15,7 +15,7 @@
 
 ## Storecake Api
 
-* [Page 2](storecake-api/page-2.md)
+* [Technology](storecake-api/technology.md)
 
 ## Webcake api
 
