@@ -4,7 +4,14 @@
 
 ## Storecake Builder
 
-* [Page 1](storecake-builder/page-1.md)
+* [Technology](storecake-builder/technology.md)
+
+***
+
+* [Installation](installation.md)
+* [Extension and rules](extension-and-rules.md)
+* [Page](page.md)
+* [Docs research (recommend)](docs-research-recommend.md)
 
 ## Storecake Api
 

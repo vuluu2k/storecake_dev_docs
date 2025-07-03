@@ -20,7 +20,7 @@ This document provides quick links to individual project documentation for easy 
 
 #### Description
 
-A Single Page Application (SPA) project designed for modern web development needs.
+BuilderX is a web application that allows intuitive and efficient web design and development.
 
 #### Documentation Link
 
