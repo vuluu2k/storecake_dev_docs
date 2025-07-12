@@ -19,4 +19,4 @@
 
 ## Webcake api
 
-* [Webcake api](webcake-api/webcake-api.md)
+* [Technology](webcake-api/technology.md)
