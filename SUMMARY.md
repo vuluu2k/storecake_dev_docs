@@ -1,6 +1,7 @@
 # Table of contents
 
 * [Storecake dev docs](README.md)
+* [Setup](setup.md)
 
 ## Storecake Builder
 
