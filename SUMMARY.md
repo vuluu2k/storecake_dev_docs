@@ -19,6 +19,9 @@
 
 ***
 
+* [Installation](installation-1.md)
+* [Extension and rules](extension-and-rules-1.md)
+* [Docs research](docs-research-1.md)
 * [Run](run.md)
 
 ## Webcake api
