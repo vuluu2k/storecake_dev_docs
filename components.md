@@ -1,3 +1,3 @@
 # Components
 
-## Some components use in project
+## Storbooky project (development)
