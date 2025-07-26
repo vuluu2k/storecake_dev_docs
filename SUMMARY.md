@@ -2,6 +2,7 @@
 
 * [Storecake dev docs](README.md)
 * [Setup](setup.md)
+* [Git flow](git-flow.md)
 
 ## Storecake Builder
 
