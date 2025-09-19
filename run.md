@@ -1,4 +1,4 @@
-# Run tools
+# Run
 
 ### Accounts
 
@@ -84,4 +84,10 @@ BuilderxApi.Run.cache_category_all
 
 ```
 BuilderxApi.Run.remove_cache_category_all
+```
+
+### Run import new address vietnamese
+
+```
+BuilderxApi.Geo.ImportGeo.import_new_vietnam_addresses()
 ```
