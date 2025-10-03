@@ -28,4 +28,5 @@
 
 ## Webcake api
 
+* [Installation](webcake-api/installation.md)
 * [Technology](webcake-api/technology.md)
