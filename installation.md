@@ -4,14 +4,14 @@
 
 1. Clone repository:
 
-```
+```bash
 git clone git@github.com:pancake-vn/builderx_spa.git
 cd builderx_spa
 ```
 
 2. Install dependencies:
 
-```
+```bash
 npm install
 # or
 yarn install
@@ -23,7 +23,7 @@ yarn install
 
 #### Development
 
-```
+```bash
 npm run dev
 # or
 yarn dev
@@ -31,7 +31,7 @@ yarn dev
 
 #### Production Build
 
-```
+```bash
 npm run build:client
 # or
 yarn build:client
@@ -51,12 +51,12 @@ yarn build:client
 
 1. Run project
 
-```
+```bash
 make dev
 ```
 
 2. Access bash
 
-```
+```bash
 make bash
 ```
