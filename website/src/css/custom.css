@@ -27,6 +27,26 @@
   --ifm-color-primary-lighter: #32d8b4;
   --ifm-color-primary-lightest: #4fddbf;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+  --ifm-background-color: #0d1117;
+  --ifm-background-surface-color: #0d1117;
+  --ifm-navbar-background-color: #0d1117;
+  --ifm-color-emphasis-100: #161b22;
+  --ifm-color-emphasis-200: #21262d;
+  --ifm-color-emphasis-300: #30363d;
+  --ifm-toc-border-color: transparent;
+  --ifm-hr-border-color: #21262d;
+  --ifm-font-color-base: #c9d1d9;
+}
+
+[data-theme='dark'] .menu {
+  background: #0d1117;
+}
+[data-theme='dark'] .navbar {
+  border-bottom: 1px solid #21262d;
+  box-shadow: none;
+}
+[data-theme='dark'] .theme-doc-sidebar-container {
+  border-right: 1px solid #21262d;
 }
 
 /* Doc content readability — sidebar/navbar untouched */
@@ -35,16 +55,22 @@
   line-height: 1.75;
 }
 
-.markdown h1 {
-  font-size: 2.25rem;
+article header h1,
+.markdown > h1:first-child {
+  font-size: 2.75rem;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 1.25rem;
 }
+
 .markdown h2 {
-  font-size: 1.75rem;
-  margin-top: 2.5rem;
+  font-size: 1.85rem;
+  margin-top: 2.75rem;
+  letter-spacing: -0.01em;
 }
 .markdown h3 {
-  font-size: 1.35rem;
-  margin-top: 2rem;
+  font-size: 1.4rem;
+  margin-top: 2.25rem;
 }
 .markdown h4 {
   font-size: 1.15rem;
@@ -83,4 +109,24 @@
 
 .table-of-contents code {
   font-size: 0.92em;
+}
+
+/* Sidebar category labels — uppercase + dimmed like GitBook */
+.menu__list-item-collapsible > .menu__link--sublist,
+.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible > .menu__link {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.menu__link {
+  font-size: 14.5px;
+  line-height: 1.5;
+  padding: 6px 12px;
+}
+
+.menu__link--active {
+  font-weight: 600;
 }

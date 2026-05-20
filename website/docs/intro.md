@@ -2,41 +2,35 @@
 slug: /
 sidebar_position: 1
 title: Storecake dev docs
-description: This book is docs for developer for webcake dev
+description: Developer documentation for the Webcake / Storecake platform.
 ---
 
-# Storecake dev docs
+# Storecake developer documentation
 
-## Developer Documentation
+Welcome to the Storecake developer handbook. This site collects setup guides, conventions, and runbooks for the three repositories that power the platform, so any engineer can ramp up, contribute, and ship with confidence.
 
-### Overview
+## Repositories at a glance
 
-This document provides quick links to individual project documentation for easy management.
+| Project | Repository | Role | Stack |
+| --- | --- | --- | --- |
+| **builderx_spa** | `pancake-vn/builderx_spa` | Web-based site builder — the editor UI that lets users design pages visually. | Vue 3 + Vite, Express SSR shell, Pinia, Ant Design Vue, TailwindCSS |
+| **builderx_api** | `pancake-vn/builderx_api` | Core backend for the builder — products, orders, accounts, integrations, real-time channels. | Phoenix (Elixir), PostgreSQL/Citus, Redis, RabbitMQ, Elasticsearch |
+| **landing_page_backend** | `pancake-vn/landing_page_backend` | Landing-page service used by published sites — public APIs, rendering, lead capture, and integrations. | Phoenix (Elixir), PostgreSQL, Redis, RabbitMQ |
 
-### Project Documentation
+## Where to start
 
-1. [builderx_spa Documentation](./storecake-builder/technology.md)
-2. [builderx_api Documentation](./storecake-api/technology.md)
-3. [webcake_api Documentation](./webcake-api/technology.md)
+- **Just joining the team?** Read [Setup](./setup.md) for tooling prerequisites, then follow [Git flow](./git-flow.md) for our branching and review process.
+- **Working on the builder UI?** Jump to [Storecake Builder → Technology](./storecake-builder/technology.md) and [Installation](./storecake-builder/installation.md).
+- **Working on backend APIs?** Start with [Storecake API → Technology](./storecake-api/technology.md) or [Webcake API → Installation](./webcake-api/installation.md).
 
-### builderx_spa
+## How this site is organized
 
-**Description** — BuilderX is a web application that allows intuitive and efficient web design and development.
+Each project section follows the same outline so you always know where to look:
 
-See detailed [builderx_spa documentation](./storecake-builder/technology.md).
+1. **Technology** — stack overview, key dependencies, and system requirements.
+2. **Installation** — clone, build, run locally with Docker or native tooling.
+3. **Extension and rules** — coding conventions, editor extensions, lint and i18n rules.
+4. **Docs research** — links to official upstream docs and short primers on patterns we rely on.
+5. **Error / Run** — runbooks for common operational tasks and known issues (backend projects only).
 
-### builderx_api
-
-**Description** — A robust API service providing backend functionalities for various applications.
-
-See detailed [builderx_api documentation](./storecake-api/technology.md).
-
-### webcake_api
-
-**Description** — An API project tailored to integrate with web applications efficiently.
-
-See detailed [webcake_api documentation](./webcake-api/technology.md).
-
-### Conclusion
-
-Each link leads to a detailed documentation page specific to the project, for an in-depth understanding and setup instructions.
+If something is missing or out of date, edit the page directly from the GitHub link at the top — improvements from anyone are welcome.
