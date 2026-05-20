@@ -1,7 +1,10 @@
 // Vercel serverless function — Decap CMS GitHub OAuth: step 2 (callback)
 // GET /api/callback?code=...&state=...
 // Exchanges the code for an access token, then postMessages it back to the
-// Decap CMS popup window.
+// Decap CMS popup parent following the netlify-cms / decap handshake:
+//   popup -> opener: "authorizing:github"
+//   opener -> popup: "authorizing:github"
+//   popup -> opener: "authorization:github:success:<json>"
 
 export default async function handler(req, res) {
   const { code, state } = req.query;
@@ -42,23 +45,32 @@ export default async function handler(req, res) {
     return;
   }
 
-  const payload = JSON.stringify({ token, provider: 'github' });
-  const html = `<!DOCTYPE html><html><body><script>
-    (function() {
-      function send(status, content) {
-        window.opener && window.opener.postMessage(
-          'authorization:github:' + status + ':' + content,
-          '*'
-        );
-      }
-      window.addEventListener('message', function(e) {
-        if (e.data === 'authorizing:github') {
-          send('success', ${JSON.stringify(payload)});
-        }
-      }, false);
-      send('success', ${JSON.stringify(payload)});
-    })();
-  </script><p>Login successful. You can close this window.</p></body></html>`;
+  const content = JSON.stringify({ token, provider: 'github' });
+  const contentJs = JSON.stringify(content); // safely embeds the JSON string into JS source
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Authorized</title></head>
+<body>
+<p>Login successful. You can close this window.</p>
+<script>
+(function() {
+  var content = ${contentJs};
+  function receiveMessage(e) {
+    if (e.data !== 'authorizing:github') return;
+    e.source.postMessage(
+      'authorization:github:success:' + content,
+      e.origin
+    );
+  }
+  window.addEventListener('message', receiveMessage, false);
+  if (window.opener) {
+    window.opener.postMessage('authorizing:github', '*');
+  }
+})();
+</script>
+</body>
+</html>`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Set-Cookie', 'oauth_state=; Path=/; Max-Age=0');
