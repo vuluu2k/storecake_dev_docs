@@ -3,7 +3,7 @@ import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'Storecake Dev Docs',
+  title: 'Webcake Docs',
   tagline: 'Developer documentation for Webcake / Storecake',
   favicon: 'img/favicon.ico',
 
@@ -55,7 +55,7 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Storecake Dev Docs',
+      title: 'Webcake Docs',
       logo: {
         alt: 'Storecake Logo',
         src: 'img/logo.svg',
