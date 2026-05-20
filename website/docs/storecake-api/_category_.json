@@ -1,0 +1,9 @@
+{
+  "label": "Storecake API",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "title": "Storecake API",
+    "description": "BuilderX API — Phoenix/Elixir backend"
+  }
+}
