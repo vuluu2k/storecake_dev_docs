@@ -49,6 +49,22 @@ const config: Config = {
     ],
   ],
 
+  clientModules: [require.resolve('./src/clientModules/copyPageUrl.ts')],
+
+  themes: [
+    [
+      require.resolve('@easyops-cn/docusaurus-search-local'),
+      {
+        hashed: true,
+        indexBlog: false,
+        docsRouteBasePath: '/',
+        highlightSearchTermsOnTargetPage: true,
+        searchBarShortcut: true,
+        searchBarShortcutHint: true,
+      },
+    ],
+  ],
+
   themeConfig: {
     image: 'img/docusaurus-social-card.jpg',
     colorMode: {
@@ -58,8 +74,8 @@ const config: Config = {
     navbar: {
       title: 'Webcake Docs',
       logo: {
-        alt: 'Storecake Logo',
-        src: 'img/logo.svg',
+        alt: 'Webcake Logo',
+        src: 'img/logo-mark.svg',
       },
       items: [
         {

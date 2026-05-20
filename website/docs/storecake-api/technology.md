@@ -5,44 +5,51 @@ title: Technology
 
 # Technology
 
-## BuilderxApi
+**builderx_api** is the core backend that powers the Storecake builder. It is built on the [Phoenix Framework](https://www.phoenixframework.org/) (Elixir) and serves REST APIs, real-time channels, and background workers for the entire product surface — store data, orders, accounts, integrations, and search.
 
-BuilderxApi is a powerful backend API built on the [Phoenix Framework](https://www.phoenixframework.org/) (Elixir), designed for product, order, account management systems, multi-service integration, and real-time/websocket support.
+## Key capabilities
 
-## Key Features
+- RESTful APIs for products, orders, accounts, blogs, partner integrations, and more.
+- Real-time messaging over **Phoenix Channels** (WebSocket).
+- Multi-language, multi-site, and multi-tenant aware.
+- Integrations with **Elasticsearch**, **Redis**, **RabbitMQ**, **Kafka**, **S3**, and SMTP providers.
+- Role-based access control with OAuth and JWT authentication.
+- CI/CD-friendly: Docker, Ansible playbooks, and a project-level Makefile.
 
-- RESTful API for multiple domains: products, orders, accounts, blogs, partner integrations, and more
-- Real-time support (WebSocket, Phoenix Channels)
-- Integrations: ElasticSearch, Redis, RabbitMQ, Kafka, S3, SMTP, etc.
-- Role-based access control, OAuth & JWT authentication
-- Multi-language, multi-site, multi-service support
-- CI/CD ready, Docker, Ansible, Makefile for development and deployment
+## System requirements
 
-## System Requirements
+| Component | Version |
+| --- | --- |
+| Elixir | ≥ 1.12.2 |
+| Erlang / OTP | ≥ 24 |
+| Node.js | ≥ 14 (for `assets/`) |
+| PostgreSQL | Citus-flavored Postgres (recommended) |
+| Docker · Docker Compose | Latest stable (recommended) |
+| Redis · RabbitMQ · Elasticsearch | Required for the full feature set |
 
-- Elixir >= 1.12.2
-- Erlang/OTP >= 24
-- Node.js >= 14 (for frontend/assets)
-- PostgreSQL (Citus)
-- Docker, Docker Compose (recommended)
-- Redis, RabbitMQ, ElasticSearch (for full feature set)
+## Repository layout
 
-## Project Structure
+```
+builderx_api/
+├── lib/
+│   ├── builderx_api/          # Business logic — products, orders, accounts, integrations
+│   └── builderx_api_web/      # Web layer — controllers, routers, channels, views, plugs
+├── assets/                    # Frontend assets (Vue 3, Ant Design Vue, Webpack)
+├── priv/repo/                 # Migrations and seeds
+├── test/                      # Test suite
+├── ansible/                   # Deployment playbooks
+├── mix.exs
+└── Makefile                   # Dev, build, and deploy shortcuts
+```
 
-- `/lib/builderx_api/` — Business logic: products, orders, accounts, integrations, etc.
-- `/lib/builderx_api_web/` — Web layer: controllers, routers, channels, views, plugs
-- `/assets/` — Frontend assets (Vue 3, Ant Design Vue, Webpack)
-- `/priv/repo/` — Database migrations and seeds
-- `/test/` — Test code
-- `/ansible/` — Deployment automation scripts
-- `Makefile` — Quick development, deployment, migration commands
+## Makefile shortcuts
 
-## Quick Development Commands (Makefile)
-
-- `make build` — Rebuild Docker image
-- `make app` — Run the app in Docker
-- `make services` — Start supporting services (Redis, RabbitMQ, ...)
-- `make migrate` — Run DB migrations inside the container
-- `make deploy` — Deploy to production via Ansible
-- `make dev` — Run in development mode (hot reload)
-- `make bash` — Access bash inside the container
+| Command | What it does |
+| --- | --- |
+| `make build` | Rebuild the Docker image. |
+| `make app` | Run the app inside Docker. |
+| `make services` | Start supporting services (Redis, RabbitMQ, …). |
+| `make migrate` | Run database migrations inside the container. |
+| `make deploy` | Deploy to production via Ansible. |
+| `make dev` | Run in development mode with hot reload. |
+| `make bash` | Open a shell inside the running container. |

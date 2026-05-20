@@ -5,44 +5,59 @@ title: Installation
 
 # Installation
 
-⚡️ Setup & Getting Started
+The recommended workflow uses Docker so everyone shares the same Elixir, Postgres, and supporting-service versions. Native Elixir is fine too if you prefer.
+
+## Prerequisites
+
+- Docker and Docker Compose (recommended), **or** Elixir 1.12.x · Erlang/OTP 24 · Node.js 14+ installed locally.
+- Access to the `pancake-vn` GitHub organization.
 
 ## 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-org/builderx_api.git
+git clone git@github.com:pancake-vn/builderx_api.git
 cd builderx_api
 ```
 
-## 2. Build docker app
+## 2. Build the Docker image
 
 ```bash
 make build
 ```
 
-## 3. Run dev (hot reload)
+## 3. Start the app in development mode (hot reload)
 
 ```bash
 make dev
 ```
 
-## 4. Run bash
+## 4. Open a shell inside the container
 
 ```bash
 make bash
 ```
 
-## 5. Install library and setup database
+Run the remaining steps inside that shell.
+
+## 5. Install Elixir deps and set up the database
 
 ```bash
 mix deps.get
 mix ecto.setup
 ```
 
-## 6. Install Node.js dependencies for frontend/assets
+`mix ecto.setup` creates the database, runs all migrations, and seeds initial data.
+
+## 6. Install Node.js dependencies for `assets/`
 
 ```bash
 cd assets
 npm install
 cd ..
 ```
+
+## Verifying the setup
+
+- Phoenix should be listening on [http://localhost:4000](http://localhost:4000).
+- `mix phx.routes` lists every registered route.
+- See [Run](./run.md) for common runbooks (creating accounts, reindexing Elasticsearch, warming caches).

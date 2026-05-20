@@ -1,44 +1,44 @@
 ---
 sidebar_position: 4
-title: Docs research (recommend)
+title: Docs research
 ---
 
-# Docs research (recommend)
+# Docs research
+
+A short primer on the patterns we rely on in **builderx_spa**, with links to the canonical upstream docs.
 
 ## Vue 3
 
-1. Read official docs: [Vue docs](https://vuejs.org/)
-2. Học cơ bản với [Vue Playground](https://play.vuejs.org/)
+- Official guide: [vuejs.org](https://vuejs.org/)
+- Try things out in the [Vue Playground](https://play.vuejs.org/)
 
-### Lifecycle Hooks in Vue Options API
+### Lifecycle hooks (Options API)
 
-A Vue component using the Options API goes through the following **lifecycle stages**:
+A Vue component using the Options API moves through four stages:
 
 #### 1. Initialization
 
-- `beforeCreate`: Data observation and reactivity haven't been set up yet.
-- `created`: Data, computed properties, and methods are available. DOM has not been mounted yet.
+- `beforeCreate` — reactivity is not set up yet.
+- `created` — `data`, `computed`, and `methods` are available; the DOM is not mounted.
 
-#### 2. Mounting (Attaching to the DOM)
+#### 2. Mounting
 
-- `beforeMount`: Called right before the initial DOM render.
-- `mounted`: The component is mounted, and the DOM is available.
+- `beforeMount` — called right before the initial render.
+- `mounted` — the component is in the DOM and refs are available.
 
-#### 3. Updating (Reactive data changes)
+#### 3. Updating
 
-- `beforeUpdate`: Called before the DOM is patched due to reactive data changes.
-- `updated`: Called after the DOM is updated.
+- `beforeUpdate` — fired before the DOM patches in response to reactive changes.
+- `updated` — fired after the patch is applied.
 
-#### 4. Unmounting (Destroying the component)
+#### 4. Unmounting
 
-- `beforeUnmount`: Called right before the component is removed from the DOM.
-- `unmounted`: Called after the component is destroyed and removed.
+- `beforeUnmount` — fired right before the component is removed.
+- `unmounted` — fired after teardown.
 
----
+### Recommended option order
 
-### Recommended Order of Options in a Vue Component
-
-Although Vue doesn't enforce option order, the official style guide recommends this structure for readability and consistency:
+Vue does not enforce option order, but the official style guide recommends this layout for readability:
 
 ```js
 export default {
@@ -49,7 +49,7 @@ export default {
   props: {},                   // 4. Props from parent
   emits: [],                   // 5. Emitted events
 
-  setup() {},                  // 6. If using Composition API
+  setup() {},                  // 6. Composition API (optional)
 
   data() {                     // 7. Local reactive state
     return {};
@@ -71,46 +71,46 @@ export default {
 };
 ```
 
-### Full Example
+### Worked example
 
 ```js
 export default {
   name: 'UserCard',
   components: { Avatar },
   props: {
-    userId: Number
+    userId: Number,
   },
   data() {
     return {
-      user: null
+      user: null,
     };
   },
   computed: {
     fullName() {
       return `${this.user.firstName} ${this.user.lastName}`;
-    }
+    },
   },
   watch: {
-    userId: 'fetchUser'
+    userId: 'fetchUser',
   },
   methods: {
     fetchUser() {
       // Fetch user data based on userId
-    }
+    },
   },
   created() {
     this.fetchUser();
-  }
-}
+  },
+};
 ```
 
-If you're using the **Composition API** (`<script setup>`), lifecycle hooks are used as functions like `onMounted()`, `onUpdated()`, etc., imported from Vue.
+> Using `<script setup>`? Lifecycle hooks become standalone functions — `onMounted()`, `onUpdated()`, and so on — imported from `vue`.
 
-## Pinia Store (Manage global state)
+## Pinia (global state)
 
 Official docs: [pinia.vuejs.org](https://pinia.vuejs.org/)
 
-### Basic Structure of a Pinia Store (Options API)
+### A minimal store
 
 ```ts
 // stores/counter.ts
@@ -134,27 +134,23 @@ export const useCounterStore = defineStore('counter', {
 })
 ```
 
-### Key Concepts
+### Key concepts
 
-#### 1. `defineStore(name, options)`
+#### `defineStore(name, options)`
 
-- `name`: unique identifier for the store (required, used by devtools and internally).
-- `options`: contains `state`, `getters`, and `actions`.
+- `name` — unique identifier used by devtools and internal caching.
+- `options` — `state`, `getters`, `actions`.
 
-#### 2. `state()`
+#### `state()`
 
-- Always a **function that returns an object**, similar to `data()` in Vue.
-- Defines **reactive state variables**.
-- Automatically made reactive by Pinia.
+- Always a **function returning an object**, mirroring `data()` in Vue.
+- Members are reactive automatically.
+- Do **not** use `this` inside `state` or `getters` — only inside `actions`.
 
-> ⚠️ Use `this` only inside `actions`, not inside `state` or `getters`.
+#### `getters`
 
-#### 3. `getters`
-
-- Like **computed properties** based on state.
-- Can access state variables and other getters.
-- Should **not mutate** state.
-- Can use `this` to access `state`, `getters`, and `actions`.
+- Like computed properties over the store's state.
+- May read other getters and state, but must not mutate.
 
 ```ts
 getters: {
@@ -163,43 +159,35 @@ getters: {
   },
   fullInfo() {
     return `${this.greeting} - count: ${this.count}`
-  }
+  },
 }
 ```
 
-#### 4. `actions`
+#### `actions`
 
-- Used to **mutate state** or perform async logic.
-- Supports `async/await`.
-- Can call other actions or access getters via `this`.
+- The place for mutations and async work. Supports `async/await`.
+- Can call other actions or read getters via `this`.
 
 ```ts
 actions: {
   async fetchData() {
-    const data = await fetch('/api/data').then(res => res.json())
+    const data = await fetch('/api/data').then((res) => res.json())
     this.count = data.count
-  }
+  },
 }
 ```
 
-#### 5. Reactivity in Components
+#### Using a store in a component
 
 ```ts
 const counter = useCounterStore()
+
 console.log(counter.count)         // reactive
 console.log(counter.doubleCount)   // reactive getter
-counter.increment()                // call action
+counter.increment()                // mutation via action
 ```
 
-#### 6. No need for `setup()` if not required
-
-- Can be used inside `<script setup>` or with the Options API.
-- Pinia works well with both Composition and Options API.
-
-#### 7. Devtools & Hot Module Replacement (HMR)
-
-- Integrated with Vue Devtools automatically.
-- Add HMR for better DX during development:
+#### Hot Module Replacement
 
 ```ts
 if (import.meta.hot) {
@@ -207,16 +195,15 @@ if (import.meta.hot) {
 }
 ```
 
-#### 8. Modules & Namespacing
+#### Modules and namespacing
 
-- Each store is an independent module.
-- No need for `namespaced` like in Vuex.
-- Organize stores by feature (e.g., `userStore`, `productStore`).
+- Each store is its own module — no `namespaced` flag like in Vuex.
+- Organize stores by feature (`userStore`, `productStore`, …).
 
 ### Summary
 
-| Part      | Role                     | Notes                                      |
-| --------- | ------------------------ | ------------------------------------------ |
-| `state`   | Holds reactive data      | Function that returns an object            |
-| `getters` | Computed-like properties | Should not cause side effects              |
-| `actions` | Logic & state mutations  | Use `this` to access state/getters/actions |
+| Part | Role | Notes |
+| --- | --- | --- |
+| `state` | Reactive data | Function returning an object |
+| `getters` | Derived, computed values | No side effects |
+| `actions` | Mutations and async logic | Use `this` to access state, getters, and other actions |

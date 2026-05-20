@@ -5,16 +5,20 @@ title: Installation
 
 # Installation
 
-## Setup
+## Prerequisites
 
-1. Clone repository:
+- Node.js 18 LTS or newer
+- npm or yarn
+- Docker (optional, only if you want the containerized workflow)
+
+## 1. Clone the repository
 
 ```bash
 git clone git@github.com:pancake-vn/builderx_spa.git
 cd builderx_spa
 ```
 
-2. Install dependencies:
+## 2. Install dependencies
 
 ```bash
 npm install
@@ -22,11 +26,21 @@ npm install
 yarn install
 ```
 
-3. Create `.env` file from `.env.example` and configure necessary environment variables.
+The `postinstall` step copies the TinyMCE assets into the repo root — that is expected.
 
-## Running the Project
+## 3. Configure environment variables
 
-### Development
+Copy the example file and fill in the values for your environment:
+
+```bash
+cp .env.example .env
+```
+
+At a minimum you will need the backend API URL and any auth keys provided by the team.
+
+## 4. Run the project
+
+### Development (hot reload)
 
 ```bash
 npm run dev
@@ -34,7 +48,7 @@ npm run dev
 yarn dev
 ```
 
-### Production Build
+### Production build
 
 ```bash
 npm run build:client
@@ -42,26 +56,27 @@ npm run build:client
 yarn build:client
 ```
 
-## Useful Commands
+The built assets land in `dist/client/`.
 
-- `npm run dev` — Run development server
-- `npm run watch` — Run server with nodemon (auto-reload)
-- `npm run build:client` — Build frontend for production
-- `npm run clean` — Clean dist directory
-- `npm run lint` — Check and fix code
-- `npm run format` — Format code with Prettier
-- `npm run setup:husky` — Setup husky rule
+## Useful scripts
 
-## Docker
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Start the development server (Vite + Express). |
+| `npm run watch` | Same as `dev` but with `nodemon` auto-reload of the Node layer. |
+| `npm run build:client` | Build the SPA for production. |
+| `npm run clean` | Remove the `dist/` directory. |
+| `npm run lint` | Lint and auto-fix `.js` / `.vue` files. |
+| `npm run format` | Format the codebase with Prettier. |
+| `npm run setup:husky` | Install Husky Git hooks. |
 
-1. Run project:
+## Docker workflow
 
-```bash
-make dev
-```
-
-2. Access bash:
+The repository includes a Makefile wrapping the most common Docker commands:
 
 ```bash
-make bash
+make dev   # Start the dev container
+make bash  # Open a shell inside the container
 ```
+
+Use this when you want full parity with the deployment environment or to avoid installing Node natively.
