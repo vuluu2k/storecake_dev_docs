@@ -32,7 +32,7 @@ src/
     cssShorthand.js              ← parseSides / formatSides (4-side padding/margin)
     draggableNode.js             ← Mixin methods: onMoveDragStart / onMoveDragEnd
     mixins/
-      nodeBase.js                ← Props, isSelected, mergedProps, lifecycle setDOM, onClick
+      nodeBase.js                ← Props, isSelected, mergedStyle/Config/Specials, lifecycle setDOM, onClick, changeStyle/Config/Specials shortcuts
       nodeContainer.js           ← Mở rộng nodeBase: isEmpty, isDropTarget, onDragOver/Enter
       index.js                   ← Barrel + nodeLeaf alias + re-export draggableNode
 

@@ -165,15 +165,15 @@ Lấy `FlexBlockV2.vue` làm ví dụ:
 ## 6. Reactive flow khi đổi breakpoint
 
 ```
-1. User click WkTabs '768px' trên Header
+1. User click WkTabs 'Tablet' trên Header
    ↓
-2. uiStore.setBreakpoint(768)
+2. uiStore.setStateField('breakpointActive', 'tablet')
    ↓
 3. store mutates: breakpointActive = 'tablet'
    ↓
 4. Pinia notify
    ↓
-5. PageWrapper.canvasStyle re-compute → { width: '768px' }
+5. PageWrapper.canvasStyle re-compute → { width: `${getBreakpointWidth('tablet')}px` } = '768px'
    ↓
 6. .wk-editor-body width transition (CSS transition 200ms ease)
    ↓
