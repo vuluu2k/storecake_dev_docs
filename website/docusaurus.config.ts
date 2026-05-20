@@ -74,36 +74,6 @@ const config: Config = {
         },
       ],
     },
-    footer: {
-      style: 'dark',
-      links: [
-        {
-          title: 'Docs',
-          items: [
-            {label: 'Overview', to: '/'},
-            {label: 'Git flow', to: '/git-flow'},
-          ],
-        },
-        {
-          title: 'Projects',
-          items: [
-            {label: 'Storecake Builder', to: '/storecake-builder/technology'},
-            {label: 'Storecake API', to: '/storecake-api/technology'},
-            {label: 'Webcake API', to: '/webcake-api/installation'},
-          ],
-        },
-        {
-          title: 'More',
-          items: [
-            {
-              label: 'GitHub',
-              href: 'https://github.com/vuluu2k/storecake_dev_docs',
-            },
-          ],
-        },
-      ],
-      copyright: `Copyright © ${new Date().getFullYear()} Pancake / Webcake. Built with Docusaurus.`,
-    },
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
