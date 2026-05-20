@@ -91,3 +91,21 @@ BuilderxApi.Run.remove_cache_category_all
 ```elixir
 BuilderxApi.Geo.ImportGeo.import_new_vietnam_addresses()
 ```
+
+### Run import old address vietnamese
+
+Địa chỉ cũ gồm 3 cấp: tỉnh - huyện - xã.
+
+1. Import full (province + district + commune) cho VN (country code 84)
+
+```elixir
+BuilderxApi.Geo.ImportGeo.import_country_addresses(84, [is_new: false, delete_old: true])
+```
+
+2. Hoặc chạy riêng từng cấp
+
+```elixir
+BuilderxApi.Geo.ImportGeo.import_vn_provinces()
+BuilderxApi.Geo.ImportGeo.import_vn_districts()
+BuilderxApi.Geo.ImportGeo.import_vn_commune()
+```
