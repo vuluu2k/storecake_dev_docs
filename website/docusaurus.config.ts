@@ -12,7 +12,7 @@ const config: Config = {
   },
 
   // CHANGE these when you have a real domain:
-  url: 'https://docs.example.com',
+  url: 'https://webcakedocs.vercel.app',
   baseUrl: '/',
 
   // CHANGE to your GitHub org/repo if you want "Edit this page" links to work

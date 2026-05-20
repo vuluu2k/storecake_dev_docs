@@ -2,14 +2,14 @@ backend:
   name: github
   repo: vuluu2k/storecake_dev_docs
   branch: main
-  base_url: https://docs.example.com  # CHANGE to your Vercel/custom domain (no trailing /)
+  base_url: https://webcakedocs.vercel.app
   auth_endpoint: api/auth
 
 publish_mode: editorial_workflow
 media_folder: website/static/img/uploads
 public_folder: /img/uploads
-site_url: https://docs.example.com  # CHANGE same as base_url
-display_url: https://docs.example.com
+site_url: https://webcakedocs.vercel.app
+display_url: https://webcakedocs.vercel.app
 
 collections:
   - name: root
