@@ -1,0 +1,58 @@
+backend:
+  name: github
+  repo: vuluu2k/storecake_dev_docs
+  branch: main
+  base_url: https://docs.example.com  # CHANGE to your Vercel/custom domain (no trailing /)
+  auth_endpoint: api/auth
+
+publish_mode: editorial_workflow
+media_folder: website/static/img/uploads
+public_folder: /img/uploads
+site_url: https://docs.example.com  # CHANGE same as base_url
+display_url: https://docs.example.com
+
+collections:
+  - name: root
+    label: Top-level pages
+    folder: website/docs
+    extension: md
+    create: true
+    slug: '{{slug}}'
+    fields:
+      - { name: title, label: Title, widget: string }
+      - { name: sidebar_position, label: Sidebar position, widget: number, required: false, value_type: int }
+      - { name: description, label: Description, widget: string, required: false }
+      - { name: body, label: Body, widget: markdown }
+
+  - name: storecake-builder
+    label: Storecake Builder
+    folder: website/docs/storecake-builder
+    extension: md
+    create: true
+    slug: '{{slug}}'
+    fields:
+      - { name: title, label: Title, widget: string }
+      - { name: sidebar_position, label: Sidebar position, widget: number, required: false, value_type: int }
+      - { name: body, label: Body, widget: markdown }
+
+  - name: storecake-api
+    label: Storecake API
+    folder: website/docs/storecake-api
+    extension: md
+    create: true
+    slug: '{{slug}}'
+    fields:
+      - { name: title, label: Title, widget: string }
+      - { name: sidebar_position, label: Sidebar position, widget: number, required: false, value_type: int }
+      - { name: body, label: Body, widget: markdown }
+
+  - name: webcake-api
+    label: Webcake API
+    folder: website/docs/webcake-api
+    extension: md
+    create: true
+    slug: '{{slug}}'
+    fields:
+      - { name: title, label: Title, widget: string }
+      - { name: sidebar_position, label: Sidebar position, widget: number, required: false, value_type: int }
+      - { name: body, label: Body, widget: markdown }
