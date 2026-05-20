@@ -28,3 +28,45 @@
   --ifm-color-primary-lightest: #4fddbf;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
+
+/* Doc content readability — sidebar/navbar untouched */
+.markdown {
+  font-size: 17px;
+  line-height: 1.75;
+}
+
+.markdown h1 {
+  font-size: 2.25rem;
+}
+.markdown h2 {
+  font-size: 1.75rem;
+  margin-top: 2.5rem;
+}
+.markdown h3 {
+  font-size: 1.35rem;
+  margin-top: 2rem;
+}
+.markdown h4 {
+  font-size: 1.15rem;
+}
+
+.markdown p,
+.markdown li {
+  font-size: 17px;
+}
+
+.markdown code {
+  font-size: 0.92em;
+}
+
+.markdown pre code {
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+/* Slightly wider reading column on big screens */
+@media (min-width: 1200px) {
+  .theme-doc-markdown {
+    max-width: 820px;
+  }
+}
