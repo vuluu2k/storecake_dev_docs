@@ -435,6 +435,109 @@ Forward nguyên text user nhập. KHÔNG paraphrase. Có thể prepend "Generate
 
 ---
 
+## 11.5. Element metadata requirements (DO NOW, every new element)
+
+Để AI gen hoạt động tốt khi launch, **mọi element mới từ bây giờ phải fill đủ AI-ready metadata trong `meta` export**. Fields đều optional ở type-level nên không break gì, nhưng required ở code review.
+
+### Required cho mọi element
+
+```js
+export const meta = {
+  // ... existing identity fields ...
+
+  description: '1-2 sentences naming semantic role. LLM picks element by purpose, not by label.',
+
+  aiHints: {
+    useWhen:      ['concrete scenario 1', 'concrete scenario 2'],
+    avoidWhen:    ['scenario where alt element is better (NAME the alt)'],
+    contentTips:  ['tone / length / casing convention'],
+  },
+
+  examples: [
+    { description: 'what it illustrates',
+      def: { type: '...', /* valid def */ } },
+    // 1-3 examples, each must pass validateDef
+  ],
+
+  semantics: ['typography' | 'cta' | 'navigation' | 'commerce' | 'above-fold-ok' | ...],
+
+  traits: {
+    general: [{
+      attributes: [{
+        key: 'text',
+        // ...
+        isContent: true,                       // ★ flag content fields
+        contentType: 'short_text',             // short_text|long_text|url|image_url|rich_text
+        description: 'per-field guidance beyond label',
+      }],
+    }],
+  },
+}
+```
+
+Trait `select` options must include `description` per value:
+
+```js
+options: [
+  { label: 'Primary', value: 'primary',
+    description: 'Main CTA, high contrast. Max 1 per section.' },
+  { label: 'Secondary', value: 'secondary',
+    description: 'Supporting action. Pair with primary.' },
+]
+```
+
+### Required cho container (`isContainer: true`)
+
+```js
+expectedChildren: {
+  typical: ['flex-block', 'heading', 'text', 'button'],
+  patterns: [
+    'heading + text + button (CTA pattern)',
+    'image + heading + text (feature card pattern)',
+  ],
+},
+minChildren: 0,                                // optional hard constraint
+maxChildren: 20,
+layoutHints: {                                 // defaults that scale with child count
+  whenChildren: {
+    1:     { flexDirection: 'column' },
+    '2-3': { flexDirection: 'row', gap: '24px' },
+    '4+':  { flexDirection: 'row', gap: '16px' },
+  },
+},
+```
+
+### Required cho storefront elements (commerce / data-bound)
+
+```js
+dataBindings: {
+  available: [
+    { path: 'product.title',  type: 'short_text' },
+    { path: 'product.price',  type: 'currency' },
+    { path: 'product.image',  type: 'image_url' },
+  ],
+  required: ['product.title', 'product.price'],
+},
+pageContext: ['product-detail', 'product-listing'],
+```
+
+### Vì sao làm bây giờ
+
+| Cost (per element) | Benefit (when AI launches) |
+|---|---|
+| ~30s viết description | LLM pick đúng element theo purpose, không bốc theo `label` |
+| ~1min viết aiHints + examples | Few-shot pattern matching → +30% output quality |
+| ~1min viết trait descriptions | LLM hết hallucinate enum value, biết khi nào dùng cái nào |
+| **Total: ~3min/element** | **Save: 1-2 giờ/element retrofit chaos lúc launch sprint** |
+
+### Tham khảo / template
+
+- Skill `builderx_spa-editor-v2-element` — checklist + template file đầy đủ
+- `src/components/editor_v2/nodes/HeadingV2.vue`, `FlexSectionV2.vue`, `FlexBlockV2.vue` — đã retrofit, dùng làm living examples
+- Skill ref: `.claude/skills/builderx_spa-editor-v2-element/references/template-ai-ready-element.md`
+
+---
+
 ## 12. Dependency on element registry
 
 **Khi thêm element mới (xem `05-extending.md`):**
