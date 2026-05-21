@@ -30,9 +30,17 @@ collections:
     extension: md
     create: true
     slug: '{{slug}}'
-    nested:
-      depth: 3
-      summary: '{{title}}'
+    fields:
+      - { name: title, label: Title, widget: string }
+      - { name: sidebar_position, label: Sidebar position, widget: number, required: false, value_type: int }
+      - { name: body, label: Body, widget: markdown }
+
+  - name: storecake-builder-editor-v2
+    label: Storecake Builder — Editor V2
+    folder: website/docs/storecake-builder/editor-v2
+    extension: md
+    create: true
+    slug: '{{slug}}'
     fields:
       - { name: title, label: Title, widget: string }
       - { name: sidebar_position, label: Sidebar position, widget: number, required: false, value_type: int }
