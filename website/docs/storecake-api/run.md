@@ -97,3 +97,21 @@ BuilderxApi.Run.remove_cache_category_all()
 ```elixir
 BuilderxApi.Geo.ImportGeo.import_new_vietnam_addresses()
 ```
+
+## Import the legacy Vietnamese address data
+
+Legacy Vietnamese addresses use three administrative levels: province → district → commune.
+
+Import every level for Vietnam (country code `84`) in one call:
+
+```elixir
+BuilderxApi.Geo.ImportGeo.import_country_addresses(84, [is_new: false, delete_old: true])
+```
+
+Or run each level individually:
+
+```elixir
+BuilderxApi.Geo.ImportGeo.import_vn_provinces()
+BuilderxApi.Geo.ImportGeo.import_vn_districts()
+BuilderxApi.Geo.ImportGeo.import_vn_commune()
+```
