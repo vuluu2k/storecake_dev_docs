@@ -1,6 +1,6 @@
 ---
-sidebar_position: 10
-title: AI Page Generation (Plan)
+sidebar_position: 9
+title: 09 — AI Page Generation (Plan)
 ---
 
 # 09 — AI Page Generation (Plan)
@@ -204,35 +204,43 @@ Mỗi block đứng độc lập, test riêng được. Phase 1 cần đủ 3 c�
 
 ### 5.1 `dumpRegistryForLLM()` — `src/composable/editor_v2/aiSchema.js` (new)
 
-Walk `registry` object → flatten `meta.traits` → strip runtime fields → return JSON-serializable `RegistrySchema`.
+Walk registry → flatten element metadata + trait schemas → return JSON-serializable `RegistrySchema`.
 
 **Pseudocode:**
 ```js
-import { registry } from './registry'
+import { getDef } from './registry'
+import { buildElementSchema } from '@/components/editor_v2/components/trait/fields/definitions'
 
 export const dumpRegistryForLLM = () => {
   const out = {}
+  // registry tác file src/composable/editor_v2/registry.js
+  const registry = getFullRegistry() // dump toàn bộ def objects
+  
   for (const type in registry) {
     const def = registry[type]
+    const jsonSchema = buildElementSchema(def.meta) // use buildElementSchema
     out[type] = {
       type,
       label: def.label,
       category: def.category,
       isContainer: !!def.isContainer,
       rules: { isRootOnly: !!(def.rules && def.rules.isRootOnly) },
-      traits: flattenTraits(def.traits),
+      schema: jsonSchema,  // JSON Schema từ buildElementSchema
+      traits: flattenTraits(def.traits),  // fallback for reference
     }
   }
   return out
 }
 
 const flattenTraits = (traits) => {
-  // Walk tabs → groups → attributes/fields → flat list of { key, target, type, options?, default? }
-  // (xem skill builderx_spa-editor-v2-ai-gen cho code đầy đủ)
+  // Walk general → advanced groups → attributes/fields
+  // → flat list của { key, target, type, options?, default?, description? }
 }
 ```
 
-**Test:** call sau `registerElements` chạy → kiểm tra mọi registered type có entry → kiểm tra `flex-section` có `isRootOnly: true`.
+**Why `buildElementSchema`:** Lấy cùng logic element validate dùng khi CI + store guard, tránh dupicate / desync.
+
+**Test:** call sau `registerElements` chạy → kiểm tra mọi registered type có entry → kiểm tra `flex-section` có `isRootOnly: true` → kiểm tra schema valid (Ajv).
 
 ### 5.2 `validateDef(def, depth?, parentType?)` — `src/composable/editor_v2/aiSchema.js`
 

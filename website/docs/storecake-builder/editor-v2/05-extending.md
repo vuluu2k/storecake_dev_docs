@@ -1,6 +1,6 @@
 ---
 sidebar_position: 6
-title: Extending
+title: 05 — Extending
 ---
 
 # 05 — Extending
@@ -11,11 +11,72 @@ Recipe thêm element mới + wire trait panel + cases nâng cao (Grid, Product, 
 
 ## 1. Recipe: Thêm 1 element mới
 
-### Bước 1 — Tạo file SFC trong `src/components/editor_v2/nodes/`
+### Bước 1 — Tạo folder trong `src/components/editor_v2/nodes/<element_name>/`
 
-Đặt tên `XxxV2.vue` (PascalCase, suffix V2). Ví dụ `TextV2.vue`:
+Tạo 3 file:
+- `index.vue` — Vue component + factory
+- `meta.js` — Runtime metadata (pure data, NO Vue)
+- `ai.js` — (optional) AI hints cho page generation
+
+Ví dụ: `src/components/editor_v2/nodes/text/`
+
+#### 1a. `meta.js` — metadata (tạo trước)
+
+```js
+// src/components/editor_v2/nodes/text/meta.js
+export const meta = {
+  type: 'text',
+  label: 'Text',
+  category: 'basic',
+  showInSidebar: true,
+  isContainer: false,
+  rules: { isRootOnly: false },
+
+  traits: {
+    general: [
+      {
+        key: 'content',
+        label: 'Content',
+        attributes: [
+          { key: 'content', type: 'text', target: 'specials', label: 'Text',
+            default: 'Lorem ipsum dolor sit amet.' },
+        ],
+      },
+      {
+        key: 'typography',
+        label: 'Typography',
+        attributes: [
+          { key: 'fontSize', type: 'number', target: 'style', label: 'Font size',
+            default: 16, props: { min: 10, max: 96 } },
+          { key: 'fontWeight', type: 'select', target: 'style', label: 'Weight',
+            default: '400',
+            props: { options: [
+              { label: 'Regular', value: '400' },
+              { label: 'Bold', value: '700' },
+            ]} },
+          { key: 'color', type: 'color', target: 'style', label: 'Color',
+            default: '#1a1a1a' },
+        ],
+      },
+    ],
+    advanced: [
+      {
+        key: 'html',
+        label: 'HTML',
+        attributes: [
+          { key: 'htmlId', type: 'text', target: 'specials', label: 'ID' },
+          { key: 'className', type: 'text', target: 'specials', label: 'Custom class' },
+        ],
+      },
+    ],
+  },
+}
+```
+
+#### 1b. `index.vue` — component + factory
 
 ```vue
+<!-- src/components/editor_v2/nodes/text/index.vue -->
 <template>
   <p
     ref="root"
@@ -35,6 +96,7 @@ Recipe thêm element mới + wire trait panel + cases nâng cao (Grid, Product, 
 import { Type } from '@lucide/vue'
 import { nodeLeaf, draggableNode } from '@/composable/editor_v2/mixins'
 import { createNode } from '@/composable/editor_v2/createNode'
+import { meta as baseMeta } from './meta.js'
 
 export default {
   name: 'TextV2',
@@ -53,16 +115,8 @@ export default {
 }
 
 export const meta = {
-  type: 'text',
-  label: 'Text',
+  ...baseMeta,
   icon: Type,
-  category: 'basic',
-  showInSidebar: true,
-  isContainer: false,
-  rules: { isRootOnly: false },
-
-  // Factory chỉ forward overrides — defaults được seed tự động qua
-  // registerElement wrapper (đọc field.default trong traits).
   factory: (overrides = {}) =>
     createNode({
       type: 'text',
@@ -71,59 +125,6 @@ export const meta = {
       config: overrides.config || {},
       specials: overrides.specials || {},
     }),
-
-  // Schema — Trait.vue reads traits.general / traits.advanced.
-  // Mỗi group có `attributes` (TraitField generic render).
-  // target: 'style' = CSS responsive; 'config' = data per-bp opt-in;
-  // 'specials' = base-only content/metadata.
-  traits: {
-    general: [
-      {
-        key: 'content',
-        label: 'Content',
-        attributes: [
-          { key: 'content', type: 'text', target: 'specials', label: 'Text',
-            default: 'Lorem ipsum dolor sit amet.' },
-        ],
-      },
-      {
-        key: 'typography',
-        label: 'Typography',
-        attributes: [
-          { key: 'fontSize', type: 'number', target: 'style', label: 'Font size',
-            default: 16,
-            props: { min: 10, max: 96, suffix: 'px' } },
-          { key: 'fontWeight', type: 'select', target: 'style', label: 'Weight',
-            default: '400',
-            props: { options: [
-              { label: 'Regular', value: '400' },
-              { label: 'Medium', value: '500' },
-              { label: 'Bold', value: '700' },
-            ]} },
-          { key: 'color', type: 'color', target: 'style', label: 'Color',
-            default: '#1a1a1a',
-            props: { dialogType: 'color' } },
-          { key: 'textAlign', type: 'select', target: 'style', label: 'Align',
-            default: 'left',
-            props: { options: [
-              { label: 'Left',   value: 'left' },
-              { label: 'Center', value: 'center' },
-              { label: 'Right',  value: 'right' },
-            ]} },
-        ],
-      },
-    ],
-    advanced: [
-      {
-        key: 'html',
-        label: 'HTML',
-        attributes: [
-          { key: 'htmlId',    type: 'text', target: 'specials', label: 'ID' },
-          { key: 'className', type: 'text', target: 'specials', label: 'Custom class' },
-        ],
-      },
-    ],
-  },
 }
 </script>
 
@@ -138,7 +139,7 @@ export const meta = {
 
 ### Bước 2 — Refresh editor
 
-Vite HMR hoặc reload. `registerElements.js` scan `nodes/*.vue` qua glob, tự phát hiện file mới + wrap factory để seed defaults.
+Vite HMR hoặc reload. `registerElements.js` scan `nodes/*/index.vue` qua glob, tự phát hiện folder mới + wrap factory để seed defaults.
 
 ### Bước 3 — Bonus: thêm vào sidebar
 
@@ -183,15 +184,17 @@ export default {
 
 ### Checklist
 
-- [ ] File trong `nodes/`, tên `XxxV2.vue`
+- [ ] Folder `nodes/<element_name>/` với 3 file: `index.vue`, `meta.js`, optional `ai.js`
+- [ ] `meta.js` — pure data, NO Vue imports, NO `@/` aliases
+- [ ] `index.vue` — import meta từ `./meta.js`, export component + spread meta + factory
 - [ ] Template: root `ref="root"` + `:data-node-id` + `data-node-type` + 5 drag attrs
 - [ ] `mixins: [nodeLeaf | nodeContainer, draggableNode]`
-- [ ] Export `default` (component) + `meta` named export
-- [ ] meta có `type`, `label`, `factory` tối thiểu
-- [ ] meta.factory call `createNode({ type, style:{}, config:{}, specials:{} })` — defaults từ trait schema tự seed
-- [ ] Container element thì `meta.isContainer: true` + có `<NodeRenderer v-for>` trong template
+- [ ] meta có `type`, `label`, `traits` tối thiểu
+- [ ] meta.factory call `createNode({ type, style:{}, config:{}, specials:{} })`
+- [ ] Container element: `meta.isContainer: true` + có `<NodeRenderer v-for>` trong template
 - [ ] Style scoped chỉ có structural CSS — selection/cursor/placeholder ở global
-- [ ] Trait schema có `default` cho field nào muốn pre-fill
+- [ ] Trait attributes có `default` cho field nào muốn pre-fill
+- [ ] Chạy `npm run validate:schemas` để verify trait schema hợp lệ
 
 ## 2. Wire Trait panel — đã có sẵn
 
@@ -242,6 +245,32 @@ Component sẽ nhận props từ TraitField: `:value`, `:model-value`, `:field`,
 
 ### Grid — container chuẩn
 
+**meta.js:**
+```js
+export const meta = {
+  type: 'grid',
+  label: 'Grid',
+  category: 'layout',
+  showInSidebar: true,
+  isContainer: true,
+  rules: { isRootOnly: false },
+  traits: {
+    general: [{
+      key: 'layout',
+      label: 'Layout',
+      attributes: [
+        { key: 'columns', type: 'number', target: 'style', label: 'Columns',
+          default: { base: 3, mobile: 1 }, props: { min: 1, max: 12 } },
+        { key: 'gap', type: 'number', target: 'style', label: 'Gap',
+          default: 16, props: { min: 0 } },
+      ],
+    }],
+    advanced: [],
+  },
+}
+```
+
+**index.vue:**
 ```vue
 <template>
   <div
@@ -273,6 +302,7 @@ Component sẽ nhận props từ TraitField: `:value`, `:model-value`, `:field`,
 import { nodeContainer, draggableNode } from '@/composable/editor_v2/mixins'
 import { createNode } from '@/composable/editor_v2/createNode'
 import NodeRenderer from '../elements/NodeRenderer.vue'
+import { meta as baseMeta } from './meta.js'
 
 export default {
   name: 'GridV2',
@@ -291,12 +321,7 @@ export default {
 }
 
 export const meta = {
-  type: 'grid',
-  label: 'Grid',
-  category: 'layout',
-  showInSidebar: true,
-  isContainer: true,
-  rules: { isRootOnly: false },
+  ...baseMeta,
   factory: (overrides = {}) =>
     createNode({
       type: 'grid',
@@ -305,19 +330,6 @@ export const meta = {
       config: overrides.config || {},
       specials: overrides.specials || {},
     }),
-  traits: {
-    general: [{
-      key: 'layout', label: 'Layout', attributes: [
-        { key: 'columns', type: 'number', target: 'style', label: 'Columns',
-          default: { base: 3, mobile: 1 },          // per-bp default — desktop 3 cột, mobile 1
-          props: { min: 1, max: 12 } },
-        { key: 'gap', type: 'number', target: 'style', label: 'Gap',
-          default: 16,
-          props: { min: 0, suffix: 'px' } },
-      ],
-    }],
-    advanced: [],
-  },
 }
 </script>
 ```

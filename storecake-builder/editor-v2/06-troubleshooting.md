@@ -108,6 +108,62 @@ import('@/composable/editor_v2/registry').then(r =>
 )
 ```
 
+### Element không xuất hiện sau khi tạo folder
+
+**Trigger:** Tạo `nodes/my_element/` + `index.vue` + `meta.js`, HMR reload, nhưng element không hiện trong sidebar / không render khi drag.
+
+**Nguyên nhân:**
+1. Glob pattern sai — `registerElements.js` chạy `import.meta.glob('nodes/*/index.vue')` nhưng file không ở đúng vị trí
+2. Quên `export const meta = {...}` trong `index.vue`
+3. `meta.type` chưa đăng ký
+4. `index.vue` import từ `meta.js` thất bại (vd vô tình import component)
+
+**Fix:**
+```bash
+# Verify folder structure
+ls -R src/components/editor_v2/nodes/my_element/
+# Phải có: index.vue, meta.js
+
+# Verify meta export
+grep "export const meta" src/components/editor_v2/nodes/my_element/index.vue
+
+# Check registry load
+import('@/composable/editor_v2/registry').then(r => console.log(r.getDef('my-element')))
+```
+
+### Store warn "unknown key dropped"
+
+**Trigger:** Console hiện warn dạng `Unknown key 'fontSize' for type 'grid'`, value không được update.
+
+**Nguyên nhân:** Key không nằm trong `meta.traits` của element. `store._writeNamespace` guard bị activate.
+
+**Fix:**
+1. Verify `meta.traits` của element có chứa key đó (check attribute `key` field)
+2. Nếu dùng definition ref (string), check `definitions.js` có entry đó và element meta có tham chiếu nó
+3. Nếu legacy inline spec, ensure key match giữa template bind (`@change="(val) => applyTrait(nodeId, { key: 'fontSize' }, val)"`) và meta.attributes.key
+
+### CI: "invalid JSON Schema"
+
+**Trigger:** `npm run validate:schemas` fail với error "Schema validation failed at element X, attribute Y"
+
+**Nguyên nhân:**
+1. `schema_helpers` misuse — vd `cssLength('20px')` return không-string khi expected string
+2. `buildElementSchema` không properly resolve definition ref
+3. Attribute reference definition không tồn tại
+
+**Fix:**
+```bash
+npm run validate:schemas -- --debug
+# Show detailed error per element
+
+# Check definitions.js có entry
+grep "export const DEFINITIONS_DATA" src/components/editor_v2/components/trait/fields/definitions.js
+# Search key trong đó
+
+# Verify element traits reference nó
+grep "key: 'width_select'" src/components/editor_v2/nodes/flex_block/meta.js
+```
+
 ### Drop ngoài canvas vẫn tạo element
 
 **Nguyên nhân:** `endDrag` không guard `dropInsideCanvas`.

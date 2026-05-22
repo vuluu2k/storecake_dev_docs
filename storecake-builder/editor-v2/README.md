@@ -22,8 +22,8 @@ src/
   composable/editor_v2/          ← Logic không phụ thuộc Vue component
     constants.js                 ← ROOT_NODE, BORDER_OFFSET, BREAKPOINTS
     createNode.js                ← createNode / createNodeTree / wrapTree (leaf primitives)
-    registry.js                  ← Pure data: getDef, registerElement, isRootOnlyType
-    registerElements.js          ← Bootstrapper — eager glob nodes/*.vue + register
+    registry.js                  ← Pure data: getDef, registerElement, isRootOnlyType, getAllowedKeys
+    registerElements.js          ← Bootstrapper — eager glob nodes/*/index.vue + register
     nodeFactory.js               ← Composite tree builders (buildBlankSection, buildRowSection)
     Positioner.js                ← Drop placement engine (port craft.js)
     getDOMInfo.js                ← DOM rect + flow direction extraction
@@ -38,17 +38,28 @@ src/
       index.js                   ← Barrel + nodeLeaf alias + re-export draggableNode
 
   stores/editor_v2/
-    node.js                      ← Tree state + add/move/remove/duplicate + query API
+    node.js                      ← Tree state + add/move/remove/duplicate + query API + _writeNamespace guard
     dnd.js                       ← Drag session state + Positioner lifecycle
     editor.js                    ← UI state (breakpoint, sidebar)
 
   components/editor_v2/
     PageWrapper.vue              ← Editor entry — canvas + overlays + bootstrapper
-    nodes/                       ← Element SFCs registered tự động
-      RootCanvasV2.vue           ← type='root'
-      FlexSectionV2.vue          ← type='flex-section'
-      FlexBlockV2.vue            ← type='flex-block'
-      HeadingV2.vue              ← type='heading'
+    nodes/                       ← Element folder structure (auto-registered)
+      root_canvas/
+        ├── index.vue            ← Component + factory (imports meta)
+        └── meta.js              ← type='root', runtime metadata (NO Vue, NO @/ alias)
+      flex_section/
+        ├── index.vue            ← Component + factory
+        ├── meta.js              ← Runtime metadata
+        └── ai.js                ← AI hints (lazy-loaded, optional)
+      flex_block/
+        ├── index.vue
+        ├── meta.js
+        └── ai.js
+      heading/
+        ├── index.vue
+        ├── meta.js
+        └── ai.js
     elements/                    ← Non-node UI cho editor
       NodeRenderer.vue           ← Switcher đọc registry → render component
       ElementDragV2.vue          ← Wrapper sidebar items để startCreate
@@ -57,7 +68,12 @@ src/
       IndicatorOverlay.vue       ← Vạch drop indicator
     components/
       sidebar/                   ← Sidebar groups + Element picker
-      trait/                     ← Trait panel components (đang build)
+      trait/
+        fields/
+          ├── definitions.js     ← Pure data: DEFINITIONS_DATA, getDefinitionData(), buildElementSchema()
+          ├── registry.js        ← COMPONENT_DEFINITIONS with .component field attached
+          └── schema_helpers.js  ← JSON Schema builders (string, number, cssColor, responsive, etc.)
+      dialog/                    ← Trait dialogs (PaddingDialog, etc.)
     PageEmpty.vue                ← Empty canvas placeholder
 
   assets/editor_v2/
@@ -70,9 +86,11 @@ src/
 |---|---|
 | **Node** | Đơn vị trong cây: `{ id, data:{type,style,config,specials,parent,nodes,responsive}, dom }` |
 | **NodeTree** | `{ rootNodeId, nodes }` — input cho `addNodeTree`, output từ factory |
-| **Element / Component** | Vue SFC trong `nodes/`, mỗi file render 1 `data.type` |
-| **Meta** | Object xuất kèm component, mô tả label, icon, factory, traits, rules |
-| **Registry** | Map `type → { ...meta, factory, defaults, component }` — auto-populate từ `registerElements` |
+| **Element** | Folder trong `nodes/<name>/` với 3 file: `index.vue` (component + factory), `meta.js` (runtime metadata), `ai.js` optional (AI hints) |
+| **Meta** | Pure data object từ `meta.js` — type, label, icon, factory, traits, rules. NO Vue imports. |
+| **Registry** | Map `type → { ...meta, factory (wrapped), defaults, component }` — auto-populate từ `registerElements` |
+| **Trait definition** | Entry trong definitions.js: `{ writes: { key: { target, schema } } }` — reusable across elements |
+| **Writes map** | `{ padding: { target: 'style', schema }, ... }` — multi-key dispatch (một attribute update nhiều fields) |
 | **Mixin** | Code chung: `nodeBase`, `nodeContainer`, `draggableNode` — mỗi element compose lại |
 | **Positioner** | Class tính ra vị trí drop khi drag, expose `computeIndicator(dropTargetId, x, y)` |
 | **Indicator** | `events.indicator = { placement: { parent, index, where }, error }` — UI overlay |
@@ -81,20 +99,24 @@ src/
 | **Style / Config / Specials** | 3 namespace data — style=CSS responsive, config=data per-bp opt-in, specials=base-only metadata |
 | **Cascade** | Desktop-first read-time: base ⊕ mọi bp slot width ≥ current (xem `07`) |
 | **applyTrait** | Generic dispatcher trong store — route value vào đúng changeStyle/Config/Specials theo `field.target` |
-| **isBreakpointMap** | Helper check object có phải responsive map (`{base, mobile, ...}`) hay complex value |
+| **buildElementSchema** | Pure function: walk `meta.traits` → resolve definitions → return JSON Schema for element |
+| **allowedKeys** | Set tất cả keys trong traits của element — store guard reject unknown keys (catch typo) |
 
 ### Workflow phổ biến
 
 | Việc cần làm | File mở |
 |---|---|
-| Thêm element mới | `nodes/XxxV2.vue` (mixin + meta) — không đụng file khác |
+| Thêm element mới | `nodes/<name>/index.vue` (component + factory) + `meta.js` (metadata) + optional `ai.js` |
+| Sửa trait definition | `components/trait/fields/definitions.js` (DEFINITIONS_DATA) — change applies to ALL elements dùng nó |
+| Sửa element traits | `nodes/<name>/meta.js` (traits schema) — definition ref hoặc inline spec |
 | Sửa drop rule | `composable/editor_v2/Positioner.js` hoặc `meta.rules.canDropInto` |
 | Sửa visual selection | `assets/editor_v2/node.css` |
 | Sửa toolbar | `elements/ElementToolbar.vue` |
 | Sửa padding/margin hover | `elements/EdgeOverlays.vue` |
-| Thêm trait field type | `components/trait/fields/Xxx.vue` + extend `TraitField` switch |
+| Thêm field widget component | `components/trait/fields/Xxx.vue` + register vào `registry.js` FIELD_COMPONENTS |
 | Sửa auto-wrap rule | `stores/editor_v2/node.js` (move / addNodeTree) |
 | Sửa breakpoint list | `composable/editor_v2/constants.js` + Header WkTabs |
+| Validate trait schemas | `npm run validate:schemas` — CI script dùng plain Node |
 
 ## Convention đặt tên
 

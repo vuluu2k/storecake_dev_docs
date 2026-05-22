@@ -1,11 +1,90 @@
 ---
-sidebar_position: 9
-title: Glossary
+sidebar_position: 8
+title: 08 — Glossary
 ---
 
 # 08 — Glossary
 
 Tham chiếu nhanh: variable abbreviations, function purposes, file mapping. Mỗi entry có ý nghĩa + nơi xuất hiện + ví dụ.
+
+---
+
+## New terms (post-refactor)
+
+### `definitions.js` — **Trait definition data file**
+
+File chứa `DEFINITIONS_DATA` — pure data map của reusable trait definitions. Mỗi definition có `writes` map (multi-target dispatch). Không import Vue.
+
+**Nơi:** `src/components/editor_v2/components/trait/fields/definitions.js`
+
+**Dùng để:** Reuse trait config across elements. Vd `width_select` definition dùng cho cả FlexBlock, Grid, etc. Thay vì định nghĩa lại trong mỗi element.
+
+---
+
+### `registry.js` (trong `trait/fields/`) — **Trait registry với Vue**
+
+Attach Vue component field vào definitions data. Import `DEFINITIONS_DATA` từ `definitions.js`, gắn `.component` field, export `COMPONENT_DEFINITIONS`.
+
+**Khác** `composable/editor_v2/registry.js` (element registry).
+
+---
+
+### `writes` — **Multi-target dispatch map**
+
+Object trong definition: `{ key: { target, schema } }`. Khi 1 attribute thay đổi, có thể update nhiều node data keys cùng lúc.
+
+```js
+{ padding: { target: 'style', schema: {...} },
+  isPaddingLinked: { target: 'specials', schema: {...} } }
+```
+
+→ 1 PaddingTrait emit `padding` + `isPaddingLinked`.
+
+---
+
+### `schema_helpers.js` — **JSON Schema builder utilities**
+
+File chứa helpers như `cssLength`, `cssColor`, `responsive`, `enumOf`, etc. Build JSON Schema objects (Ajv-compatible).
+
+---
+
+### `ai.js` (element sidecar) — **AI-generation metadata**
+
+Optional file `nodes/<name>/ai.js`. Lazy-loaded, contains: description, useWhen/avoidWhen, examples, semantics. Dùng khi building LLM tool schema (Phase 1 của AI gen).
+
+---
+
+### `buildElementSchema(meta)` — **Pure function**
+
+Walk element `meta.traits` → resolve definitions → return JSON Schema object matching `{ type: 'object', properties: { style?, config?, specials? } }` shape. Output matches `createNodeTree` contract.
+
+---
+
+### `allowedKeys` — **Guard against typos**
+
+Set tất cả valid keys từ traits của element. Store `_writeNamespace` action guard:
+- Check incoming key có trong `allowedKeys`
+- Nếu không → `console.warn('unknown key dropped')`
+- Drop từ patch, write rest
+
+Catch hallucination từ typo / AI misfire.
+
+---
+
+### `index.vue` (element convention) — **Component + factory home**
+
+Element structure: `nodes/<name>/index.vue` chứa Vue component + factory function. Import `meta` từ `./meta.js`, spread + override với factory.
+
+```js
+import { meta as baseMeta } from './meta.js'
+export const meta = { ...baseMeta, factory: (overrides) => ... }
+```
+
+---
+
+### `meta.js` (element convention) — **Runtime metadata file**
+
+Pure data file: type, label, traits, rules. NO Vue imports, NO `@/` aliases (tránh cycle). Được import bởi `index.vue` sau.
 
 ---
 

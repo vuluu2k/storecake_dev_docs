@@ -1,6 +1,6 @@
 ---
 sidebar_position: 2
-title: Architecture
+title: 01 — Architecture
 ---
 
 # 01 — Architecture
@@ -188,22 +188,37 @@ Trước refactor:
 
 ### Sau refactor
 
-**Source of truth:** mỗi element SFC tự khai báo `meta`. Registry tự lookup.
+**Source of truth:** mỗi element folder tự khai báo `meta` trong file riêng. Registry tự lookup.
 
 ```
-nodes/HeadingV2.vue
-  ├── export default { ... component options ... }
-  └── export const meta = {
-        type: 'heading',
-        label: 'Heading',
-        icon: Type,
-        factory: (overrides) => createNode({...}),
-        traits: [{ key: 'text', type: 'text', label: 'Text' }],
-        rules: { isRootOnly: false },
-      }
+nodes/heading/
+  ├── index.vue        ← component + factory (imports meta từ ./meta.js)
+  ├── meta.js          ← Pure data: type, label, traits, rules (NO Vue, NO @/)
+  └── ai.js            ← (optional) AI hints, lazy-loaded
 ```
 
-**Bootstrap:** `registerElements.js` chạy `import.meta.glob('@/components/editor_v2/nodes/*.vue', { eager: true })`, lặp qua từng module, gọi `registerElement(meta, default)`.
+**Meta shape:**
+```js
+// meta.js
+export const meta = {
+  type: 'heading',
+  label: 'Heading',
+  traits: [{ key: 'text', type: 'text', label: 'Text' }],
+  rules: { isRootOnly: false },
+}
+
+// index.vue
+import { meta as baseMeta } from './meta.js'
+import { createNode } from '@/composable/editor_v2/createNode'
+
+export default { ... }
+export const meta = {
+  ...baseMeta,
+  factory: (overrides) => createNode({ type: 'heading', ... }),
+}
+```
+
+**Bootstrap:** `registerElements.js` chạy `import.meta.glob('nodes/*/index.vue', { eager: true })`, lặp qua từng module, gọi `registerElement(meta, default)`.
 
 **Consumers:**
 | File | Đọc gì từ registry |
@@ -243,14 +258,14 @@ node.js store
         (registry không import gì cả)
 
 PageWrapper.vue
-  ├── import 'registerElements'         ← side-effect: eager glob nodes
-  │     └── kéo nodes/*.vue → mixins → stores → registry (đã load xong, OK)
+  ├── import 'registerElements'         ← side-effect: eager glob nodes/*/index.vue
+  │     └── kéo index.vue → meta.js → mixins → stores → registry (đã load xong, OK)
   └── import other components
 ```
 
 Khi PageWrapper render, stores đã init xong, mixins đã có binding `useNodeStore`, registry đã populate.
 
-**Rule cứng:** trong `registry.js` KHÔNG được import bất cứ component nào (kể cả via re-export). Mọi import-cycle test phải pass.
+**Rule cứng:** trong `registry.js` KHÔNG được import bất cứ component nào (kể cả via re-export). `meta.js` files PHẢI Vue-free (NO `import` từ `@/components`). Mọi import-cycle test phải pass.
 
 ## 5. Mixin layering
 
