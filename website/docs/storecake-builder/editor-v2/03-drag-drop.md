@@ -1,6 +1,6 @@
 ---
 sidebar_position: 4
-title: Drag and Drop
+title: 03 — Drag & Drop
 ---
 
 # 03 — Drag & Drop

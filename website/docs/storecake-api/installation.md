@@ -1,54 +1,54 @@
 ---
 sidebar_position: 2
-title: Installation
+title: Cài đặt
 ---
 
-# Installation
+# Cài đặt
 
-The recommended workflow uses Docker so everyone shares the same Elixir, Postgres, and supporting-service versions. Native Elixir is fine too if you prefer.
+Quy trình khuyến nghị là dùng Docker để mọi người trong team đều dùng cùng phiên bản Elixir, Postgres và các service hỗ trợ. Cài Elixir native cũng được nếu bạn thích.
 
-## Prerequisites
+## Yêu cầu chuẩn bị
 
-- Docker and Docker Compose (recommended), **or** Elixir 1.12.x · Erlang/OTP 24 · Node.js 14+ installed locally.
-- Access to the `pancake-vn` GitHub organization.
+- Docker và Docker Compose (khuyến nghị), **hoặc** Elixir 1.12.x · Erlang/OTP 24 · Node.js 14+ đã cài trên máy.
+- Quyền truy cập tổ chức `pancake-vn` trên GitHub.
 
-## 1. Clone the repository
+## 1. Clone repository
 
 ```bash
 git clone git@github.com:pancake-vn/builderx_api.git
 cd builderx_api
 ```
 
-## 2. Build the Docker image
+## 2. Build Docker image
 
 ```bash
 make build
 ```
 
-## 3. Start the app in development mode (hot reload)
+## 3. Chạy app ở chế độ dev (hot reload)
 
 ```bash
 make dev
 ```
 
-## 4. Open a shell inside the container
+## 4. Mở shell bên trong container
 
 ```bash
 make bash
 ```
 
-Run the remaining steps inside that shell.
+Các bước còn lại thực hiện bên trong shell này.
 
-## 5. Install Elixir deps and set up the database
+## 5. Cài Elixir dependency và setup database
 
 ```bash
 mix deps.get
 mix ecto.setup
 ```
 
-`mix ecto.setup` creates the database, runs all migrations, and seeds initial data.
+`mix ecto.setup` sẽ tạo database, chạy migration và seed dữ liệu khởi tạo.
 
-## 6. Install Node.js dependencies for `assets/`
+## 6. Cài Node.js dependency cho `assets/`
 
 ```bash
 cd assets
@@ -56,8 +56,8 @@ npm install
 cd ..
 ```
 
-## Verifying the setup
+## Kiểm tra setup
 
-- Phoenix should be listening on [http://localhost:4000](http://localhost:4000).
-- `mix phx.routes` lists every registered route.
-- See [Run](./run.md) for common runbooks (creating accounts, reindexing Elasticsearch, warming caches).
+- Phoenix phải đang lắng nghe tại [http://localhost:4000](http://localhost:4000).
+- Lệnh `mix phx.routes` liệt kê toàn bộ route đã đăng ký.
+- Xem [Runbook](./run.md) cho các thao tác vận hành thường gặp (tạo tài khoản, reindex Elasticsearch, warm cache).

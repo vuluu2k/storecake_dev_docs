@@ -1,36 +1,36 @@
 ---
 slug: /
 sidebar_position: 1
-title: Storecake dev docs
-description: Developer documentation for the Webcake / Storecake platform.
+title: Storecake Dev Docs
+description: Tài liệu kỹ thuật cho nền tảng Webcake / Storecake.
 ---
 
-# Storecake developer documentation
+# Tài liệu kỹ thuật Storecake
 
-Welcome to the Storecake developer handbook. This site collects setup guides, conventions, and runbooks for the three repositories that power the platform, so any engineer can ramp up, contribute, and ship with confidence.
+Chào mừng bạn đến với bộ tài liệu dành cho lập trình viên Storecake. Site này tập hợp hướng dẫn cài đặt, quy ước và quy trình vận hành cho ba repository chính, giúp bất kỳ kỹ sư nào cũng có thể nhanh chóng vào việc, đóng góp và phát hành an toàn.
 
-## Repositories at a glance
+## Ba dự án chính
 
-| Project | Repository | Role | Stack |
+| Dự án | Repository | Vai trò | Stack |
 | --- | --- | --- | --- |
-| **builderx_spa** | `pancake-vn/builderx_spa` | Web-based site builder — the editor UI that lets users design pages visually. | Vue 3 + Vite, Express SSR shell, Pinia, Ant Design Vue, TailwindCSS |
-| **builderx_api** | `pancake-vn/builderx_api` | Core backend for the builder — products, orders, accounts, integrations, real-time channels. | Phoenix (Elixir), PostgreSQL/Citus, Redis, RabbitMQ, Elasticsearch |
-| **landing_page_backend** | `pancake-vn/landing_page_backend` | Landing-page service used by published sites — public APIs, rendering, lead capture, and integrations. | Phoenix (Elixir), PostgreSQL, Redis, RabbitMQ |
+| **builderx_spa** | `pancake-vn/builderx_spa` | Site builder trên web — giao diện editor cho phép người dùng thiết kế trang trực quan. | Vue 3 + Vite, Express SSR shell, Pinia, Ant Design Vue, TailwindCSS |
+| **builderx_api** | `pancake-vn/builderx_api` | Backend lõi của builder — sản phẩm, đơn hàng, tài khoản, các tích hợp, real-time channels. | Phoenix (Elixir), PostgreSQL/Citus, Redis, RabbitMQ, Elasticsearch |
+| **landing_page_backend** | `pancake-vn/landing_page_backend` | Dịch vụ phục vụ các landing page đã publish — API công khai, render, capture lead, các tích hợp. | Phoenix (Elixir), PostgreSQL, Redis, RabbitMQ |
 
-## Where to start
+## Bắt đầu từ đâu
 
-- **Just joining the team?** Read [Setup](./setup.md) for tooling prerequisites, then follow [Git flow](./git-flow.md) for our branching and review process.
-- **Working on the builder UI?** Jump to [Storecake Builder → Technology](./storecake-builder/technology.md) and [Installation](./storecake-builder/installation.md).
-- **Working on backend APIs?** Start with [Storecake API → Technology](./storecake-api/technology.md) or [Webcake API → Installation](./webcake-api/installation.md).
+- **Mới vào team?** Đọc [Setup](./setup.md) để cài đặt môi trường máy, rồi xem [Quy trình Git](./git-flow.md).
+- **Làm builder UI?** Vào [Storecake Builder → Công nghệ](./storecake-builder/technology.md) và [Cài đặt](./storecake-builder/installation.md).
+- **Làm backend API?** Bắt đầu với [Storecake API → Công nghệ](./storecake-api/technology.md) hoặc [Webcake API → Cài đặt](./webcake-api/installation.md).
 
-## How this site is organized
+## Cách tổ chức tài liệu
 
-Each project section follows the same outline so you always know where to look:
+Mỗi module dự án đều theo cùng dàn ý để bạn luôn biết tìm thông tin ở đâu:
 
-1. **Technology** — stack overview, key dependencies, and system requirements.
-2. **Installation** — clone, build, run locally with Docker or native tooling.
-3. **Extension and rules** — coding conventions, editor extensions, lint and i18n rules.
-4. **Docs research** — links to official upstream docs and short primers on patterns we rely on.
-5. **Error / Run** — runbooks for common operational tasks and known issues (backend projects only).
+1. **Công nghệ** — tổng quan stack, các dependency chính, yêu cầu hệ thống.
+2. **Cài đặt** — clone, build, chạy local bằng Docker hoặc native.
+3. **Extension & quy ước code** — quy ước code, extension editor, lint, i18n.
+4. **Tài liệu tham khảo** — liên kết tới docs upstream và ghi chú ngắn về các pattern team đang dùng.
+5. **Lỗi / Runbook** — quy trình vận hành thường gặp và lỗi đã biết (chỉ ở module backend).
 
-If something is missing or out of date, edit the page directly from the GitHub link at the top — improvements from anyone are welcome.
+Nếu thấy nội dung thiếu hoặc lỗi thời, bạn có thể chỉnh sửa trực tiếp qua link GitHub ở đầu trang — mọi đóng góp đều được hoan nghênh.

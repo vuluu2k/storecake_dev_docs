@@ -1,45 +1,48 @@
 ---
 sidebar_position: 2
-title: Setup
+title: Cài đặt môi trường
 ---
 
-# Workstation setup
+# Cài đặt môi trường
 
-A short checklist for getting a new laptop ready to work on any of the three Storecake repositories. Project-specific install steps live under each project section — this page covers the shared baseline.
+Danh sách kiểm tra ngắn để chuẩn bị một máy tính mới sẵn sàng làm việc trên ba repository Storecake. Bước cài đặt riêng cho từng dự án nằm trong từng mục dự án — trang này chỉ liệt kê những thứ chung mà mọi người đều cần.
 
-## Required tooling
+## Công cụ bắt buộc
 
-| Tool | Purpose | Recommended version |
+| Công cụ | Mục đích | Phiên bản khuyến nghị |
 | --- | --- | --- |
-| **Git** | Version control | Latest stable |
-| **Docker Desktop** (or OrbStack) | Run backend services and the local stack | Latest stable |
-| **Node.js** | builderx_spa and frontend assets | 18 LTS or newer |
-| **Elixir / Erlang** | Optional — backend dev without Docker | Elixir 1.12.x · OTP 24 |
-| **Make** | Project task runner used by every repo | Bundled with macOS / Linux |
-| **VS Code** | Recommended editor (see extension lists per project) | Latest stable |
+| **Git** | Quản lý mã nguồn | Bản stable mới nhất |
+| **Docker Desktop** (hoặc OrbStack) | Chạy backend và stack local | Bản stable mới nhất |
+| **Node.js** | builderx_spa và frontend assets | 18 LTS trở lên |
+| **Elixir / Erlang** | Tùy chọn — phát triển backend không dùng Docker | Elixir 1.12.x · OTP 24 |
+| **Make** | Task runner mà mọi repo đều dùng | Đã có sẵn trên macOS / Linux |
+| **VS Code** | Editor được khuyến nghị (xem danh sách extension trong từng dự án) | Bản stable mới nhất |
 
-> Most engineers run the backends inside Docker and the SPA on the host. You only need a native Elixir install if you want to attach an IEx shell or run mix tasks without entering the container.
+> Phần lớn anh em trong team chạy backend trong Docker và SPA chạy trực tiếp trên máy. Bạn chỉ cần cài Elixir native nếu muốn mở IEx shell hoặc chạy `mix task` mà không vào container.
 
-## SSH and GitHub access
+## SSH và quyền truy cập GitHub
 
-1. Generate an SSH key (`ssh-keygen -t ed25519`) and add it to your GitHub account.
-2. Confirm access: `ssh -T git@github.com`.
-3. Make sure you are a member of the `pancake-vn` organization — ping a maintainer if you cannot see the repositories.
+1. Tạo SSH key (`ssh-keygen -t ed25519`) và thêm vào tài khoản GitHub.
+2. Kiểm tra truy cập: `ssh -T git@github.com`.
+3. Đảm bảo bạn đã được mời vào tổ chức `pancake-vn` — nhắn maintainer nếu chưa thấy các repository.
 
-## Recommended dotfiles
+## Cấu hình Git nên có
 
-- Configure Git identity:
-  ```bash
-  git config --global user.name "Your Name"
-  git config --global user.email "you@example.com"
-  ```
-- Enable rebase on pull and prune-on-fetch:
-  ```bash
-  git config --global pull.rebase true
-  git config --global fetch.prune true
-  ```
+Đặt thông tin định danh:
 
-## Next steps
+```bash
+git config --global user.name "Tên của bạn"
+git config --global user.email "ban@example.com"
+```
 
-- Read [Git flow](./git-flow.md) for branching, commit, and review conventions.
-- Pick the project you will be working on and follow its **Installation** page.
+Bật rebase khi pull và tự dọn ref cũ khi fetch:
+
+```bash
+git config --global pull.rebase true
+git config --global fetch.prune true
+```
+
+## Bước tiếp theo
+
+- Đọc [Quy trình Git](./git-flow.md) để nắm quy ước branching, commit và review.
+- Chọn dự án bạn sẽ làm và đi theo trang **Cài đặt** của dự án đó.

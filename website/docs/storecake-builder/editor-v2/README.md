@@ -1,27 +1,27 @@
 ---
 sidebar_position: 1
-title: Editor V2 — Documentation Index
+title: Editor V2 — Mục lục
 ---
 
-# Editor V2 — Documentation Index
 
-Tài liệu chi tiết về kiến trúc Editor V2: visual page builder kế thừa từ Pagefly DOM convention, port từ craft.js (React) sang Vue 3 Options API + Pinia.
+Tài liệu chi tiết về kiến trúc Editor V2: visual page builder kế thừa convention DOM của Pagefly, port từ craft.js (React) sang Vue 3 Options API + Pinia.
 
 ## Đọc theo thứ tự này
 
-1. [`01-architecture.md`](./01-architecture.md) — Tổng quan kiến trúc, folder structure, 3 stores, registry pattern, mixin layering, cách tránh import cycle ⚠️ data model section đã outdate — xem `07` cho data shape mới
-2. [`02-rendering.md`](./02-rendering.md) — Pipeline render: từ `PageWrapper` → `NodeRenderer` → component, cách Vue reactivity hoạt động với store
-3. [`03-drag-drop.md`](./03-drag-drop.md) — Luồng kéo-tạo (sidebar → canvas) + kéo-di chuyển (existing node) + Positioner deep dive + IndicatorOverlay
-4. [`04-overlays.md`](./04-overlays.md) — Selection state, ElementToolbar (floating), EdgeOverlays (padding/margin hover)
-5. [`05-extending.md`](./05-extending.md) — Recipe thêm element mới + cases nâng cao (Grid, Product, ProductSlider) ⚠️ trait panel section thay bằng `07`
-6. [`06-troubleshooting.md`](./06-troubleshooting.md) — Lỗi thường gặp + cách debug + checklist khi thêm/sửa element
-7. [`07-traits-and-data.md`](./07-traits-and-data.md) ★ **NEW** — **Superset** thay thế phần data model + trait panel: 3 namespace (style/config/specials), cascade desktop-first, trait schema, TraitField generic, defaults (primitive + responsive map + complex value), dialog commit qua `applyTrait`, line-by-line code annotations
-8. [`08-glossary.md`](./08-glossary.md) ★ **NEW** — Variable abbreviations (`ns`, `bp`, `def`, `ctx`, `raw`, `merged`, …), function purposes, file mapping, naming conventions, anti-patterns
-9. [`09-ai-page-generation.md`](./09-ai-page-generation.md) ★ **PLAN** — Roadmap 3 phase tích hợp AI generate page (Phase 1 = one-shot full page MVP). Architecture, JSON contracts, building blocks (`dumpRegistryForLLM` / `validateDef` / `commitAIPage`), prompt strategy, cost/quota, test plan, open questions. Chưa implement — đọc khi bắt đầu Phase 1.
+1. [`01-architecture.md`](./01-architecture.md) — Tổng quan kiến trúc, cấu trúc thư mục, 3 store, registry pattern, mixin layering, cách tránh import cycle. ⚠️ Phần data model đã cũ — xem `07` cho data shape mới.
+2. [`02-rendering.md`](./02-rendering.md) — Pipeline render: từ `PageWrapper` → `NodeRenderer` → component, cách Vue reactivity phối hợp với store.
+3. [`03-drag-drop.md`](./03-drag-drop.md) — Luồng kéo-tạo (sidebar → canvas) + kéo-di chuyển (node đã có) + Positioner chi tiết + IndicatorOverlay.
+4. [`04-overlays.md`](./04-overlays.md) — Selection state, ElementToolbar (floating), EdgeOverlays (padding/margin khi hover).
+5. [`05-extending.md`](./05-extending.md) — Cách thêm element mới + case nâng cao (Grid, Product, ProductSlider). ⚠️ Phần trait panel thay bằng `07`.
+6. [`06-troubleshooting.md`](./06-troubleshooting.md) — Lỗi thường gặp, cách debug và checklist khi thêm/sửa element.
+7. [`07-traits-and-data.md`](./07-traits-and-data.md) ★ **MỚI** — **Tài liệu chính** thay thế phần data model + trait panel cũ: 3 namespace (style/config/specials), cascade desktop-first, trait schema, TraitField generic, defaults (primitive + responsive map + complex value), commit dialog qua `applyTrait`, chú thích code theo từng dòng.
+8. [`08-glossary.md`](./08-glossary.md) ★ **MỚI** — Từ viết tắt cho biến (`ns`, `bp`, `def`, `ctx`, `raw`, `merged`, …), mục đích của từng hàm, mapping file, quy ước đặt tên, anti-pattern cần tránh.
+9. [`09-ai-page-generation.md`](./09-ai-page-generation.md) ★ **KẾ HOẠCH** — Roadmap 3 phase tích hợp AI generate page (Phase 1 = MVP one-shot full page). Kiến trúc, JSON contracts, building block (`dumpRegistryForLLM` / `validateDef` / `commitAIPage`), chiến lược prompt, cost/quota, test plan, câu hỏi mở. Chưa triển khai — đọc khi bắt đầu Phase 1.
 
-## Quick reference
+## Tra cứu nhanh
 
-### Folder tree
+### Cây thư mục
+
 ```
 src/
   composable/editor_v2/          ← Logic không phụ thuộc Vue component
@@ -68,7 +68,7 @@ src/
     elements/                    ← Non-node UI cho editor
       NodeRenderer.vue           ← Switcher đọc registry → render component
       ElementDragV2.vue          ← Wrapper sidebar items để startCreate
-      ElementToolbar.vue         ← Floating toolbar trên element selected
+      ElementToolbar.vue         ← Floating toolbar trên element đang chọn
       EdgeOverlays.vue           ← Padding/margin SVG strips + hover detection
       IndicatorOverlay.vue       ← Vạch drop indicator
     components/
@@ -76,71 +76,71 @@ src/
       trait/
         fields/
           ├── definitions.js     ← Pure data: DEFINITIONS_DATA, getDefinitionData(), buildElementSchema()
-          ├── registry.js        ← COMPONENT_DEFINITIONS with .component field attached
+          ├── registry.js        ← COMPONENT_DEFINITIONS với field .component đính kèm
           └── schema_helpers.js  ← JSON Schema builders (string, number, cssColor, responsive, etc.)
-      dialog/                    ← Trait dialogs (PaddingDialog, etc.)
-    PageEmpty.vue                ← Empty canvas placeholder
+      dialog/                    ← Trait dialog (PaddingDialog, …)
+    PageEmpty.vue                ← Canvas trống placeholder
 
   assets/editor_v2/
     node.css                     ← Global: wk-node-selected, wk-node-placeholder, cursor
 ```
 
-### Key concepts một câu
+### Các khái niệm chính trong một câu
 
-| Concept | Tóm tắt |
+| Khái niệm | Tóm tắt |
 |---|---|
 | **Node** | Đơn vị trong cây: `{ id, data:{type,style,config,specials,parent,nodes,responsive}, dom }` |
 | **NodeTree** | `{ rootNodeId, nodes }` — input cho `addNodeTree`, output từ factory |
-| **Element** | Folder trong `nodes/<name>/` với 3 file: `index.vue` (component + factory), `meta.js` (runtime metadata), `ai.js` optional (AI hints) |
-| **Meta** | Pure data object từ `meta.js` — type, label, icon, factory, traits, rules. NO Vue imports. |
-| **Registry** | Map `type → { ...meta, factory (wrapped), defaults, component }` — auto-populate từ `registerElements` |
-| **Trait definition** | Entry trong definitions.js: `{ writes: { key: { target, schema } } }` — reusable across elements |
-| **Writes map** | `{ padding: { target: 'style', schema }, ... }` — multi-key dispatch (một attribute update nhiều fields) |
+| **Element** | Folder trong `nodes/<name>/` với 3 file: `index.vue` (component + factory), `meta.js` (runtime metadata), `ai.js` (tùy chọn — AI hints) |
+| **Meta** | Object dữ liệu thuần từ `meta.js` — type, label, icon, factory, traits, rules. KHÔNG có Vue imports. |
+| **Registry** | Map `type → { ...meta, factory (đã wrap), defaults, component }` — auto-populate từ `registerElements` |
+| **Trait definition** | Entry trong definitions.js: `{ writes: { key: { target, schema } } }` — dùng lại được cho nhiều element |
+| **Writes map** | `{ padding: { target: 'style', schema }, ... }` — multi-key dispatch (một attribute update nhiều field) |
 | **Mixin** | Code chung: `nodeBase`, `nodeContainer`, `draggableNode` — mỗi element compose lại |
-| **Positioner** | Class tính ra vị trí drop khi drag, expose `computeIndicator(dropTargetId, x, y)` |
+| **Positioner** | Class tính vị trí drop khi drag, expose `computeIndicator(dropTargetId, x, y)` |
 | **Indicator** | `events.indicator = { placement: { parent, index, where }, error }` — UI overlay |
 | **Breakpoint** | text key `'desktop'/'laptop'/'tablet'/'mobile'` — slot key trong `data.responsive` |
 | **Auto-wrap** | Drop element không phải Section vào ROOT → tự bọc trong FlexSection |
-| **Style / Config / Specials** | 3 namespace data — style=CSS responsive, config=data per-bp opt-in, specials=base-only metadata |
-| **Cascade** | Desktop-first read-time: base ⊕ mọi bp slot width ≥ current (xem `07`) |
-| **applyTrait** | Generic dispatcher trong store — route value vào đúng changeStyle/Config/Specials theo `field.target` |
-| **buildElementSchema** | Pure function: walk `meta.traits` → resolve definitions → return JSON Schema for element |
-| **allowedKeys** | Set tất cả keys trong traits của element — store guard reject unknown keys (catch typo) |
+| **Style / Config / Specials** | 3 namespace dữ liệu — style=CSS responsive, config=data per-bp opt-in, specials=metadata base-only |
+| **Cascade** | Desktop-first lúc đọc: base ⊕ mọi slot bp có width ≥ current (xem `07`) |
+| **applyTrait** | Dispatcher tổng trong store — route value vào đúng changeStyle/Config/Specials theo `field.target` |
+| **buildElementSchema** | Hàm pure: walk `meta.traits` → resolve definitions → trả về JSON Schema cho element |
+| **allowedKeys** | Set của tất cả key trong traits của element — store guard reject key lạ (catch typo) |
 
 ### Workflow phổ biến
 
-| Việc cần làm | File mở |
+| Việc cần làm | File cần mở |
 |---|---|
-| Thêm element mới | `nodes/<name>/index.vue` (component + factory) + `meta.js` (metadata) + optional `ai.js` |
-| Sửa trait definition | `components/trait/fields/definitions.js` (DEFINITIONS_DATA) — change applies to ALL elements dùng nó |
-| Sửa element traits | `nodes/<name>/meta.js` (traits schema) — definition ref hoặc inline spec |
+| Thêm element mới | `nodes/<name>/index.vue` (component + factory) + `meta.js` (metadata) + `ai.js` (tùy chọn) |
+| Sửa trait definition | `components/trait/fields/definitions.js` (DEFINITIONS_DATA) — thay đổi áp dụng cho TẤT CẢ element dùng nó |
+| Sửa element traits | `nodes/<name>/meta.js` (traits schema) — có thể ref định nghĩa hoặc spec inline |
 | Sửa drop rule | `composable/editor_v2/Positioner.js` hoặc `meta.rules.canDropInto` |
 | Sửa visual selection | `assets/editor_v2/node.css` |
 | Sửa toolbar | `elements/ElementToolbar.vue` |
-| Sửa padding/margin hover | `elements/EdgeOverlays.vue` |
-| Thêm field widget component | `components/trait/fields/Xxx.vue` + register vào `registry.js` FIELD_COMPONENTS |
-| Sửa auto-wrap rule | `stores/editor_v2/node.js` (move / addNodeTree) |
-| Sửa breakpoint list | `composable/editor_v2/constants.js` + Header WkTabs |
-| Validate trait schemas | `npm run validate:schemas` — CI script dùng plain Node |
+| Sửa hover padding/margin | `elements/EdgeOverlays.vue` |
+| Thêm field widget mới | `components/trait/fields/Xxx.vue` + register vào `registry.js` FIELD_COMPONENTS |
+| Sửa rule auto-wrap | `stores/editor_v2/node.js` (move / addNodeTree) |
+| Sửa danh sách breakpoint | `composable/editor_v2/constants.js` + Header WkTabs |
+| Validate trait schema | `npm run validate:schemas` — script CI dùng Node thuần |
 
-## Convention đặt tên
+## Quy ước đặt tên
 
-- Element SFC: `XxxV2.vue` PascalCase, suffix V2 phân biệt với v1
+- Element SFC: `XxxV2.vue` PascalCase, suffix V2 để phân biệt với v1
 - Type string: kebab-case (`flex-section`, `product-slider`)
 - CSS class: prefix `wk-` (web-cake), modifier `--`, element `__`
   - `wk-flex-block` / `wk-flex-block--drop-active` / `wk-node-placeholder__text`
 - Mixin: camelCase, không cần suffix (`nodeBase`, `nodeContainer`)
-- Store: `useXxxStore` (Pinia convention)
+- Store: `useXxxStore` (theo convention Pinia)
 
-## Out of scope hiện tại
+## Ngoài phạm vi hiện tại
 
 - Multi-select / shift-click
-- Undo / redo (history store stub đã có nhưng chưa wire)
-- Linked nodes (data-list pattern cho ProductSlider advanced)
-- Save / load page state (chỉ in-memory)
+- Undo / redo (history store đã có stub nhưng chưa wire)
+- Linked node (data-list pattern cho ProductSlider advanced)
+- Save / load page state (hiện chỉ in-memory)
 - Inline text editing (Heading hiện chỉ đọc)
-- Keyboard nav (arrow để chọn node)
+- Keyboard nav (mũi tên để chọn node)
 - Lock / hide element trong Layers
 - Copy / paste qua clipboard
 
-Xem `05-extending.md` phần "Roadmap" để biết hướng triển khai từng cái.
+Xem mục "Roadmap" trong `05-extending.md` để biết hướng triển khai từng cái.

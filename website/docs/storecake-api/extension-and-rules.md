@@ -1,27 +1,27 @@
 ---
 sidebar_position: 3
-title: Extension and rules
+title: Extension & quy ước code
 ---
 
-# Extension and rules
+# Extension & quy ước code
 
-Conventions and editor tooling for working on **builderx_api**.
+Quy ước code và bộ công cụ editor cho repo **builderx_api**.
 
-## Coding conventions
+## Quy ước code
 
-- Follow standard Elixir style — run `mix format` before opening a PR.
-- Keep the **web layer** (`lib/builderx_api_web/`) thin: controllers, routers, channels, and plugs only. Business logic belongs in `lib/builderx_api/`.
-- Prefer Ecto changesets for validation; never trust controller params directly.
-- Add migrations for every schema change and check them in alongside the code.
-- Wire up a Phoenix Channel only when you genuinely need push semantics — REST is the default.
+- Tuân thủ phong cách Elixir chuẩn — chạy `mix format` trước khi mở PR.
+- Giữ **web layer** (`lib/builderx_api_web/`) gọn nhẹ: chỉ chứa controller, router, channel, plug. Mọi logic nghiệp vụ phải nằm trong `lib/builderx_api/`.
+- Ưu tiên Ecto changeset để validate; tuyệt đối không tin trực tiếp params từ controller.
+- Mỗi thay đổi schema phải có migration đi kèm, commit cùng code.
+- Chỉ wire một Phoenix Channel khi thực sự cần push real-time; mặc định dùng REST.
 
-## Recommended VS Code extensions
+## Extension VS Code khuyến nghị
 
-1. **[ElixirLS](https://marketplace.visualstudio.com/items?itemName=JakeBecker.elixir-ls)** — compiler diagnostics, formatter integration, go-to-definition.
-2. **[Phoenix Framework](https://marketplace.visualstudio.com/items?itemName=phoenixframework.phoenix)** — `.heex` and Phoenix template support.
-3. **[EditorConfig](https://marketplace.visualstudio.com/items?itemName=EditorConfig.EditorConfig)** — picks up the repo's `.editorconfig`.
+1. **[ElixirLS](https://marketplace.visualstudio.com/items?itemName=JakeBecker.elixir-ls)** — diagnostic compiler, format, go-to-definition.
+2. **[Phoenix Framework](https://marketplace.visualstudio.com/items?itemName=phoenixframework.phoenix)** — hỗ trợ template Phoenix và `.heex`.
+3. **[EditorConfig](https://marketplace.visualstudio.com/items?itemName=EditorConfig.EditorConfig)** — tự đọc file `.editorconfig` của repo.
 
-Add to your workspace `.vscode/settings.json`:
+Thêm vào `.vscode/settings.json` của workspace:
 
 ```json
 {
@@ -33,11 +33,11 @@ Add to your workspace `.vscode/settings.json`:
 }
 ```
 
-> Dialyzer is heavy on first run. Turn it on only when you need it.
+> Dialyzer rất nặng ở lần chạy đầu. Chỉ bật khi thật sự cần.
 
-## Database conventions
+## Quy ước database
 
-- Naming: snake_case tables, plural names (`products`, `orders`).
-- Primary keys are UUIDs (binary_id) unless there is a strong reason for integer ids.
-- Every table has `inserted_at` and `updated_at`.
-- Tenant-aware tables include `site_id` and are indexed on it.
+- Đặt tên bảng theo snake_case, dạng số nhiều (`products`, `orders`).
+- Khóa chính dùng UUID (binary_id), trừ khi có lý do mạnh để dùng integer.
+- Mọi bảng đều có `inserted_at` và `updated_at`.
+- Bảng có scope theo tenant phải chứa `site_id` và phải đánh index cho cột này.

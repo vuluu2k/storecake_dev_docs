@@ -1,56 +1,56 @@
-# Docs research (recommend)
+# Tài liệu tham khảo — Storecake Builder
 
-## Vue3&#x20;
+Tóm tắt ngắn các pattern team đang dùng trong **builderx_spa**, kèm link tới tài liệu chính chủ.
 
-1. You read docs for project [Vue docs](https://vuejs.org/)
-2. If you want learn base vue, you can access [playground](https://play.vuejs.org/) of vue
+## Vue 3
 
-### 🌀 **Lifecycle Hooks in Vue Options API**
+- Tài liệu chính thức: [vuejs.org](https://vuejs.org/)
+- Thử nhanh các snippet trong [Vue Playground](https://play.vuejs.org/)
 
-A Vue component using the Options API goes through the following **lifecycle stages**:
+### Lifecycle hooks (Options API)
 
-#### ▶️ 1. **Initialization**
+Một component Vue dùng Options API đi qua bốn giai đoạn:
 
-* `beforeCreate`: Data observation and reactivity haven't been set up yet.
-* `created`: Data, computed properties, and methods are available. DOM has not been mounted yet.
+#### 1. Khởi tạo (Initialization)
 
-#### 🧬 2. **Mounting (Attaching to the DOM)**
+- `beforeCreate` — reactivity chưa được thiết lập.
+- `created` — `data`, `computed`, `methods` đã sẵn sàng; DOM chưa được mount.
 
-* `beforeMount`: Called right before the initial DOM render.
-* `mounted`: The component is mounted, and the DOM is available.
+#### 2. Mount
 
-#### 🔁 3. **Updating (Reactive data changes)**
+- `beforeMount` — được gọi ngay trước lần render đầu tiên.
+- `mounted` — component đã có trong DOM, các `ref` đã có giá trị.
 
-* `beforeUpdate`: Called before the DOM is patched due to reactive data changes.
-* `updated`: Called after the DOM is updated.
+#### 3. Cập nhật (Updating)
 
-#### ❌ 4. **Unmounting (Destroying the component)**
+- `beforeUpdate` — chạy trước khi Vue patch DOM theo state thay đổi.
+- `updated` — chạy sau khi patch hoàn tất.
 
-* `beforeUnmount`: Called right before the component is removed from the DOM.
-* `unmounted`: Called after the component is destroyed and removed.
+#### 4. Unmount (Hủy)
 
-***
+- `beforeUnmount` — chạy ngay trước khi component bị gỡ.
+- `unmounted` — chạy sau khi teardown xong.
 
-### 🧾 **Recommended Order of Options in a Vue Component**
+### Thứ tự option khuyến nghị
 
-Although Vue doesn't enforce option order, the official style guide recommends this structure for readability and consistency:
+Vue không bắt buộc, nhưng style guide chính thức gợi ý sắp xếp theo thứ tự sau để dễ đọc:
 
 ```js
-jsCopyEditexport default {
-  name: 'MyComponent',         // 1. Component name
-  components: {},              // 2. Registered child components
-  directives: {},              // 3. Registered directives
+export default {
+  name: 'MyComponent',         // 1. Tên component
+  components: {},              // 2. Component con đã đăng ký
+  directives: {},              // 3. Directive đã đăng ký
 
-  props: {},                   // 4. Props from parent
-  emits: [],                   // 5. Emitted events
+  props: {},                   // 4. Props nhận từ parent
+  emits: [],                   // 5. Sự kiện component emit ra
 
-  setup() {},                  // 6. If using Composition API
+  setup() {},                  // 6. Composition API (tùy chọn)
 
-  data() {                     // 7. Local reactive state
+  data() {                     // 7. State local
     return {};
   },
   computed: {},                // 8. Computed properties
-  watch: {},                   // 9. Watchers
+  watch: {},                   // 9. Watcher
 
   methods: {},                 // 10. Methods
 
@@ -66,53 +66,49 @@ jsCopyEditexport default {
 };
 ```
 
-***
-
-### ✅ **Full Example**
+### Ví dụ đầy đủ
 
 ```js
-jsCopyEditexport default {
+export default {
   name: 'UserCard',
   components: { Avatar },
   props: {
-    userId: Number
+    userId: Number,
   },
   data() {
     return {
-      user: null
+      user: null,
     };
   },
   computed: {
     fullName() {
       return `${this.user.firstName} ${this.user.lastName}`;
-    }
+    },
   },
   watch: {
-    userId: 'fetchUser'
+    userId: 'fetchUser',
   },
   methods: {
     fetchUser() {
-      // Fetch user data based on userId
-    }
+      // Lấy dữ liệu user theo userId
+    },
   },
   created() {
     this.fetchUser();
-  }
-}
+  },
+};
 ```
 
-***
+> Nếu dùng `<script setup>`, lifecycle hook trở thành các hàm độc lập — `onMounted()`, `onUpdated()`,... — import từ `vue`.
 
-If you're using the **Composition API** (`<script setup>`), lifecycle hooks are used as functions like `onMounted()`, `onUpdated()`, etc., imported from Vue.
+## Pinia (state global)
 
-## Pinia store (Manage global state)
+Tài liệu chính thức: [pinia.vuejs.org](https://pinia.vuejs.org/)
 
-### You can visit [docs](https://pinia.vuejs.org/)
-
-### ✅ Basic Structure of a Pinia Store (Options API)
+### Store tối giản
 
 ```ts
-tsCopyEdit// stores/counter.ts
+// stores/counter.ts
 import { defineStore } from 'pinia'
 
 export const useCounterStore = defineStore('counter', {
@@ -133,107 +129,76 @@ export const useCounterStore = defineStore('counter', {
 })
 ```
 
-***
+### Các khái niệm chính
 
-### 🔑 Key Concepts to Understand
+#### `defineStore(name, options)`
 
-#### 1. **`defineStore(name, options)`**
+- `name` — định danh duy nhất cho store, dùng cho devtools và cache.
+- `options` — gồm `state`, `getters`, `actions`.
 
-* `name`: a unique identifier for the store (required, used by devtools and internally).
-* `options`: contains `state`, `getters`, and `actions`.
+#### `state()`
 
-***
+- Luôn là **hàm trả về object**, giống `data()` trong Vue.
+- Mọi field trong state đều reactive tự động.
+- **Không** dùng `this` trong `state` hay `getters` — chỉ dùng trong `actions`.
 
-#### 2. **`state()`**
+#### `getters`
 
-* Always a **function that returns an object**, similar to `data()` in Vue.
-* Defines **reactive state variables**.
-* Automatically made reactive by Pinia.
-
-> ⚠️ Use `this` only inside `actions`, not inside `state` or `getters`.
-
-***
-
-#### 3. **`getters`**
-
-* Like **computed properties** based on state.
-* Can access state variables and other getters.
-* Should **not mutate** state.
-* Can use `this` to access `state`, `getters`, and `actions`.
+- Tương đương computed properties trên state của store.
+- Có thể đọc state và getter khác nhưng không được mutate.
 
 ```ts
-tsCopyEditgetters: {
+getters: {
   greeting(state) {
     return `Hello ${state.name}`
   },
   fullInfo() {
     return `${this.greeting} - count: ${this.count}`
-  }
+  },
 }
 ```
 
-***
+#### `actions`
 
-#### 4. **`actions`**
-
-* Used to **mutate state** or perform async logic.
-* Supports `async/await`.
-* Can call other actions or access getters via `this`.
+- Nơi đặt mutation và logic bất đồng bộ. Hỗ trợ `async/await`.
+- Có thể gọi action khác hoặc đọc getter qua `this`.
 
 ```ts
-tsCopyEditactions: {
+actions: {
   async fetchData() {
-    const data = await fetch('/api/data').then(res => res.json())
+    const data = await fetch('/api/data').then((res) => res.json())
     this.count = data.count
-  }
+  },
 }
 ```
 
-***
-
-#### 5. **Reactivity in Components**
+#### Dùng store trong component
 
 ```ts
-tsCopyEditconst counter = useCounterStore()
-console.log(counter.count)          // reactive
-console.log(counter.doubleCount)   // reactive getter
-counter.increment()                // call action
+const counter = useCounterStore()
+
+console.log(counter.count)         // reactive
+console.log(counter.doubleCount)   // getter reactive
+counter.increment()                // gọi action để mutate
 ```
 
-***
-
-#### 6. **No need for `setup()` if not required**
-
-* Can be used inside `<script setup>` or with the Options API.
-* Pinia works well with both Composition and Options API.
-
-***
-
-#### 7. **Devtools & Hot Module Replacement (HMR)**
-
-* Integrated with Vue Devtools automatically.
-* Add HMR for better DX during development:
+#### Hot Module Replacement
 
 ```ts
-tsCopyEditif (import.meta.hot) {
+if (import.meta.hot) {
   import.meta.hot.accept(acceptHMRUpdate(useCounterStore, import.meta.hot))
 }
 ```
 
-***
+#### Module & namespacing
 
-#### 8. **Modules & Namespacing**
+- Mỗi store là một module độc lập — không có cờ `namespaced` như Vuex.
+- Tổ chức store theo feature (`userStore`, `productStore`,...).
 
-* Each store is an independent module.
-* No need for `namespaced` like in Vuex.
-* Organize stores by feature (e.g., `userStore`, `productStore`).
+### Tóm tắt
 
-***
-
-### 📌 Summary
-
-| Part      | Role                     | Notes                                      |
-| --------- | ------------------------ | ------------------------------------------ |
-| `state`   | Holds reactive data      | Function that returns an object            |
-| `getters` | Computed-like properties | Should not cause side effects              |
-| `actions` | Logic & state mutations  | Use `this` to access state/getters/actions |
+| Phần | Vai trò | Ghi chú |
+| --- | --- | --- |
+| `state` | Dữ liệu reactive | Hàm trả về object |
+| `getters` | Giá trị derived/computed | Không gây side effect |
+| `actions` | Mutation và logic async | Dùng `this` để truy cập state, getters, action khác |

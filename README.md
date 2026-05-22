@@ -1,63 +1,33 @@
 ---
-description: This book is docs for developer for webcake dev
+description: Tài liệu dành cho lập trình viên Webcake / Storecake.
 ---
 
-# Storecake dev docs
+# Storecake Dev Docs
 
-## Developer Documentation
+Chào mừng bạn đến với bộ tài liệu kỹ thuật của nền tảng **Webcake / Storecake**. Tài liệu này tập hợp hướng dẫn cài đặt, quy ước, và quy trình vận hành cho ba repository chính, giúp bất kỳ kỹ sư nào cũng có thể nhanh chóng vào việc, đóng góp và phát hành an toàn.
 
-### Overview
+## Ba dự án chính
 
-This document provides quick links to individual project documentation for easy management.
+| Dự án | Repository | Vai trò | Stack |
+| --- | --- | --- | --- |
+| **builderx_spa** | `pancake-vn/builderx_spa` | Site builder trên web — giao diện editor cho phép người dùng thiết kế trang trực quan. | Vue 3 + Vite, Express SSR shell, Pinia, Ant Design Vue, TailwindCSS |
+| **builderx_api** | `pancake-vn/builderx_api` | Backend lõi của builder — sản phẩm, đơn hàng, tài khoản, tích hợp, real-time channels. | Phoenix (Elixir), PostgreSQL/Citus, Redis, RabbitMQ, Elasticsearch |
+| **landing_page_backend** | `pancake-vn/landing_page_backend` | Dịch vụ phục vụ các landing page đã publish — API public, render trang, capture lead, các tích hợp. | Phoenix (Elixir), PostgreSQL, Redis, RabbitMQ |
 
-### Project Documentation
+## Bắt đầu từ đâu
 
-1. builderx\_spa Documentation
-2. builderx\_api Documentation
-3. webcake\_api Documentation
+- **Mới gia nhập team?** Đọc [Setup](setup.md) để cài đặt môi trường máy, rồi xem [Git flow](git-flow.md) cho quy trình branching và review.
+- **Làm builder UI?** Vào [Storecake Builder → Technology](storecake-builder/technology.md) và [Installation](installation.md).
+- **Làm backend API?** Bắt đầu với [Storecake API → Technology](storecake-api/technology.md) hoặc [Webcake API → Installation](webcake-api/installation.md).
 
-### builderx\_spa
+## Cách tổ chức tài liệu
 
-#### Description
+Mỗi module dự án đều theo cùng một dàn ý để bạn luôn biết tìm thông tin ở đâu:
 
-BuilderX is a web application that allows intuitive and efficient web design and development.
+1. **Technology** — tổng quan stack, dependency chính và yêu cầu hệ thống.
+2. **Installation** — clone, build, chạy local bằng Docker hoặc native.
+3. **Extension and rules** — quy ước code, extension editor, lint, i18n.
+4. **Docs research** — liên kết tới tài liệu upstream và ghi chú ngắn về các pattern team đang dùng.
+5. **Error / Run** — runbook cho thao tác vận hành thường gặp và lỗi đã biết (chỉ có ở module backend).
 
-#### Documentation Link
-
-See detailed builderx\_spa documentation&#x20;
-
-{% content-ref url="broken-reference" %}
-[Broken link](broken-reference)
-{% endcontent-ref %}
-
-### builderx\_api
-
-#### Description
-
-A robust API service providing backend functionalities for various applications.
-
-#### Documentation Link
-
-See detailed builderx\_api documentation
-
-{% content-ref url="broken-reference" %}
-[Broken link](broken-reference)
-{% endcontent-ref %}
-
-### webcake\_api
-
-#### Description
-
-An API project tailored to integrate with web applications efficiently.
-
-#### Documentation Link
-
-See detailed webcake\_api documentation
-
-{% content-ref url="broken-reference" %}
-[Broken link](broken-reference)
-{% endcontent-ref %}
-
-### Conclusion
-
-Each link leads to a detailed documentation page specific to the project, for an in-depth understanding and setup instructions.
+Nếu thấy nội dung thiếu hoặc lỗi thời, bạn có thể chỉnh sửa trực tiếp qua link GitHub ở đầu trang — mọi đóng góp đều được hoan nghênh.

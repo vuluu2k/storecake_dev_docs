@@ -1,10 +1,17 @@
-# Error
+# Lỗi thường gặp — Storecake API
 
-### Publish or save builder error
+Các vấn đề đã biết và cách xử lý nhanh cho **builderx_api**.
 
-*   check and create folder&#x20;
+## "Publish" hoặc "Save" lỗi trong builder
 
-    ```elixir
-    priv/static/css
-    ```
+**Triệu chứng** — Khi publish hoặc save từ giao diện builder, request trả về 500 và log báo lỗi ghi file CSS.
 
+**Nguyên nhân** — Thư mục `priv/static/css` không tồn tại trong container.
+
+**Cách fix** — Tạo thư mục rồi thử lại:
+
+```bash
+mkdir -p priv/static/css
+```
+
+Nếu bạn chạy trong Docker, làm trong `make bash` để đường dẫn được tạo bên trong volume của container.

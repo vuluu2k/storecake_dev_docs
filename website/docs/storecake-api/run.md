@@ -1,35 +1,35 @@
 ---
 sidebar_position: 6
-title: Runbooks
+title: Runbook
 ---
 
-# Runbooks
+# Runbook
 
-Common operational tasks for **builderx_api**. Each block is meant to be run from an IEx shell inside the container (`make bash` → `iex -S mix`) unless noted otherwise.
+Các thao tác vận hành thường gặp cho **builderx_api**. Mỗi block dưới đây mặc định chạy trong IEx shell bên trong container (`make bash` → `iex -S mix`), trừ khi có ghi chú khác.
 
-## Accounts
+## Tài khoản
 
-Create an account:
+Tạo tài khoản mới:
 
 ```elixir
 BuilderxApi.Accounts.create_account(%{email: "example@gmail.com"})
 ```
 
-Generate a one-time login link:
+Sinh link đăng nhập một lần (one-time login link):
 
 ```elixir
 BuilderxApi.Run.get_login_link("example@gmail.com")
 ```
 
-## Indexing products into Elasticsearch
+## Index sản phẩm vào Elasticsearch
 
-1. Start the supporting services from `webcms`:
+1. Bật các service hỗ trợ từ `webcms`:
 
    ```bash
    cd webcms && make beam
    ```
 
-2. Boot the RabbitMQ consumers used by the indexer:
+2. Khởi động RabbitMQ consumer dùng cho indexer:
 
    ```elixir
    BuilderxApi.DynamicApp.start_rabbit()
@@ -37,78 +37,78 @@ BuilderxApi.Run.get_login_link("example@gmail.com")
    Rabbit.TaskPoolConsumer.start_link()
    ```
 
-3. Run the index functions:
+3. Chạy hàm index:
 
-   - Reindex every product:
+   - Reindex toàn bộ sản phẩm:
 
      ```elixir
      Elastic.re_setup_product_index()
      ```
 
-   - Delete the old index after a successful reindex:
+   - Xóa index cũ sau khi reindex thành công:
 
      ```elixir
      Elastic.confirm_re_setup_product_index()
      ```
 
-## Product cache (ETS in-memory)
+## Cache sản phẩm (ETS in-memory)
 
-Warm the product cache for a single site:
+Warm cache sản phẩm cho một site:
 
 ```elixir
-# site_id is a UUID, e.g. "16952bde-3812-4373-8e9d-8c7c56857312"
+# site_id là UUID, ví dụ "16952bde-3812-4373-8e9d-8c7c56857312"
 BuilderxApi.Run.ets_cache_product_site(site_id)
 ```
 
-Warm the variations cache for that site:
+Warm cache variation của site đó:
 
 ```elixir
 BuilderxApi.Run.ets_cache_agg_variations_by_site(site_id)
 ```
 
-## Category cache
+## Cache danh mục
 
-Warm the category cache for a single site:
+Warm cache danh mục cho một site:
 
 ```elixir
 BuilderxApi.Run.cache_category_has_many_products(site_id)
 ```
 
-Remove the category cache for a single site:
+Xóa cache danh mục của một site:
 
 ```elixir
 BuilderxApi.Run.remove_cache_category_by_site(site_id)
 ```
 
-Warm every site:
+Warm toàn bộ site:
 
 ```elixir
 BuilderxApi.Run.cache_category_all()
 ```
 
-Remove every site's cache:
+Xóa cache của toàn bộ site:
 
 ```elixir
 BuilderxApi.Run.remove_cache_category_all()
 ```
 
-## Import the latest Vietnamese address data
+## Import dữ liệu địa chỉ Việt Nam (mới)
 
 ```elixir
 BuilderxApi.Geo.ImportGeo.import_new_vietnam_addresses()
 ```
 
-## Import the legacy Vietnamese address data
+## Import dữ liệu địa chỉ Việt Nam (cũ — 3 cấp)
 
-Legacy Vietnamese addresses use three administrative levels: province → district → commune.
+Địa chỉ cũ gồm ba cấp hành chính: tỉnh → huyện → xã.
 
-Import every level for Vietnam (country code `84`) in one call:
+Import cả ba cấp cho Việt Nam (country code `84`) trong một lệnh:
 
 ```elixir
 BuilderxApi.Geo.ImportGeo.import_country_addresses(84, [is_new: false, delete_old: true])
 ```
 
-Or run each level individually:
+Hoặc chạy riêng từng cấp:
 
 ```elixir
 BuilderxApi.Geo.ImportGeo.import_vn_provinces()

@@ -1,62 +1,77 @@
-# Installation
+# Cài đặt — Storecake Builder (builderx_spa)
 
-### 🛠️ Installation
+## Yêu cầu chuẩn bị
 
-1. Clone repository:
+- Node.js 18 LTS trở lên
+- npm hoặc yarn
+- Docker (tùy chọn, chỉ cần khi bạn muốn chạy bằng container)
+
+## 1. Clone repository
 
 ```bash
 git clone git@github.com:pancake-vn/builderx_spa.git
 cd builderx_spa
 ```
 
-2. Install dependencies:
+## 2. Cài dependency
 
 ```bash
 npm install
-# or
+# hoặc
 yarn install
 ```
 
-3. Create .env file from .env.example and configure necessary environment variables
+Bước `postinstall` sẽ copy asset TinyMCE vào root repo — đây là hành vi đúng, không cần lo.
 
-### 🚀 Running the Project
+## 3. Cấu hình biến môi trường
 
-#### Development
+Copy file mẫu rồi điền giá trị cho môi trường của bạn:
+
+```bash
+cp .env.example .env
+```
+
+Tối thiểu bạn cần URL của backend API và các auth key do team cấp.
+
+## 4. Chạy dự án
+
+### Development (hot reload)
 
 ```bash
 npm run dev
-# or
+# hoặc
 yarn dev
 ```
 
-#### Production Build
+### Build production
 
 ```bash
 npm run build:client
-# or
+# hoặc
 yarn build:client
 ```
 
-### 📝 Useful Commands
+Sản phẩm build nằm trong thư mục `dist/client/`.
 
-* `npm run dev`: Run development server
-* `npm run watch`: Run server with nodemon (auto-reload)
-* `npm run build:client`: Build frontend for production
-* `npm run clean`: Clean dist directory
-* `npm run lint`: Check and fix code
-* `npm run format`: Format code with Prettier
-* `npm run setup:husky`: Setup husky rule
+## Các lệnh hữu ích
 
-### 🐳 Docker
+| Lệnh | Tác dụng |
+| --- | --- |
+| `npm run dev` | Chạy dev server (Vite + Express). |
+| `npm run watch` | Giống `dev` nhưng có `nodemon` auto-reload phần Node. |
+| `npm run build:client` | Build SPA cho production. |
+| `npm run clean` | Xóa thư mục `dist/`. |
+| `npm run lint` | Lint và tự sửa code `.js` / `.vue`. |
+| `npm run format` | Format code bằng Prettier. |
+| `npm run setup:husky` | Cài đặt Husky Git hooks. |
 
-1. Run project
+## Chạy bằng Docker
 
-```bash
-make dev
-```
-
-2. Access bash
+Repo có sẵn `Makefile` wrap các lệnh Docker thông dụng:
 
 ```bash
-make bash
+make dev   # Khởi động container dev
+make bash  # Mở shell trong container
 ```
+
+Dùng cách này khi bạn muốn môi trường giống production hoặc không muốn cài Node trực tiếp trên máy.
