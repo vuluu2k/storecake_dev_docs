@@ -1,4 +1,4 @@
-# Cài đặt — Storecake API (builderx_api)
+# Cài đặt — Storefront API (builderx_api)
 
 Quy trình khuyến nghị là dùng Docker để mọi người trong team đều dùng cùng phiên bản Elixir, Postgres và các service hỗ trợ. Cài Elixir native cũng được nếu bạn thích.
 

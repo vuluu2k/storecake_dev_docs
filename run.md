@@ -1,4 +1,4 @@
-# Runbook — Storecake API
+# Runbook — Storefront API
 
 Các thao tác vận hành thường gặp cho **builderx_api**. Mỗi block dưới đây mặc định chạy trong IEx shell bên trong container (`make bash` → `iex -S mix`), trừ khi có ghi chú khác.
 

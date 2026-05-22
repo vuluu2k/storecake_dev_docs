@@ -1,4 +1,4 @@
-# Tài liệu tham khảo — Storecake Builder
+# Tài liệu tham khảo — Storefront
 
 Tóm tắt ngắn các pattern team đang dùng trong **builderx_spa**, kèm link tới tài liệu chính chủ.
 

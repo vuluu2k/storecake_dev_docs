@@ -1,7 +1,7 @@
 ---
 slug: /
 sidebar_position: 1
-title: Storecake Dev Docs
+title: Webcake Docs
 description: Tài liệu kỹ thuật cho nền tảng Webcake / Storecake.
 ---
 
@@ -20,8 +20,8 @@ Chào mừng bạn đến với bộ tài liệu dành cho lập trình viên St
 ## Bắt đầu từ đâu
 
 - **Mới vào team?** Đọc [Setup](./setup.md) để cài đặt môi trường máy, rồi xem [Quy trình Git](./git-flow.md).
-- **Làm builder UI?** Vào [Storecake Builder → Công nghệ](./storecake-builder/technology.md) và [Cài đặt](./storecake-builder/installation.md).
-- **Làm backend API?** Bắt đầu với [Storecake API → Công nghệ](./storecake-api/technology.md) hoặc [Webcake API → Cài đặt](./webcake-api/installation.md).
+- **Làm builder UI?** Vào [Storefront → Công nghệ](./storecake-builder/technology.md) và [Cài đặt](./storecake-builder/installation.md).
+- **Làm backend API?** Bắt đầu với [Storefront API → Công nghệ](./storecake-api/technology.md) hoặc [Webcake API → Cài đặt](./webcake-api/installation.md).
 
 ## Cách tổ chức tài liệu
 

@@ -1,4 +1,4 @@
-# Lỗi thường gặp — Storecake API
+# Lỗi thường gặp — Storefront API
 
 Các vấn đề đã biết và cách xử lý nhanh cho **builderx_api**.
 

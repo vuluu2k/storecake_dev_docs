@@ -5,7 +5,7 @@ title: Công nghệ
 
 # Công nghệ
 
-**builderx_api** là backend lõi cung cấp dữ liệu cho Storecake Builder. Service được viết trên [Phoenix Framework](https://www.phoenixframework.org/) (Elixir) và phục vụ REST API, real-time channel, cũng như background worker cho toàn bộ sản phẩm — dữ liệu shop, đơn hàng, tài khoản, các tích hợp và search.
+**builderx_api** là backend lõi cung cấp dữ liệu cho Storefront. Service được viết trên [Phoenix Framework](https://www.phoenixframework.org/) (Elixir) và phục vụ REST API, real-time channel, cũng như background worker cho toàn bộ sản phẩm — dữ liệu shop, đơn hàng, tài khoản, các tích hợp và search.
 
 ## Khả năng chính
 

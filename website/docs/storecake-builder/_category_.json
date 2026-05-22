@@ -1,9 +1,9 @@
 {
-  "label": "Storecake Builder",
+  "label": "Storefront",
   "position": 4,
   "link": {
     "type": "generated-index",
-    "title": "Storecake Builder",
+    "title": "Storefront",
     "description": "BuilderX SPA — Vue 3 frontend"
   }
 }

@@ -1,4 +1,4 @@
-# Tài liệu tham khảo — Storecake API
+# Tài liệu tham khảo — Storefront API
 
 Các tài liệu bên ngoài team thường tra cứu khi làm việc với **builderx_api**.
 

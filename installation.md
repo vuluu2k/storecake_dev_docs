@@ -1,4 +1,4 @@
-# Cài đặt — Storecake Builder (builderx_spa)
+# Cài đặt — Storefront (builderx_spa)
 
 ## Yêu cầu chuẩn bị
 

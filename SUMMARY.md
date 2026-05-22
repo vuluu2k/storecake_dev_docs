@@ -4,7 +4,7 @@
 * [Cài đặt môi trường](setup.md)
 * [Quy trình Git](git-flow.md)
 
-## Storecake Builder
+## Storefront
 
 * [Công nghệ](storecake-builder/technology.md)
 
@@ -28,7 +28,7 @@
 * [Editor V2 — 08 Glossary](storecake-builder/editor-v2/08-glossary.md)
 * [Editor V2 — 09 AI Page Generation](storecake-builder/editor-v2/09-ai-page-generation.md)
 
-## Storecake API
+## Storefront API
 
 * [Công nghệ](storecake-api/technology.md)
 

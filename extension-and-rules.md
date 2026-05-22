@@ -1,4 +1,4 @@
-# Extension & quy ước code — Storecake Builder
+# Extension & quy ước code — Storefront
 
 Quy ước code và bộ công cụ editor cho repo **builderx_spa**.
 
