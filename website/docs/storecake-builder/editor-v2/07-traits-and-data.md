@@ -1,6 +1,6 @@
 ---
 sidebar_position: 8
-title: Traits, Data Model & Schema System
+title: 07 — Traits & Schema
 ---
 
 # 07 — Trait Panel, Data Model & Schema System

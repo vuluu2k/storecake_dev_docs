@@ -1,22 +1,22 @@
 ---
 sidebar_position: 13
-title: Errors
+title: Lỗi thường gặp
 ---
 
-# Errors
+# Lỗi thường gặp
 
-Known issues and quick fixes for **builderx_api**.
+Các vấn đề đã biết và cách xử lý nhanh cho **builderx_api**.
 
-## "Publish" or "Save" fails in the builder
+## "Publish" hoặc "Save" lỗi trong builder
 
-**Symptom** — Publishing or saving from the builder UI returns a 500 and the logs show a file-system error writing CSS assets.
+**Triệu chứng** — Khi publish hoặc save từ giao diện builder, request trả về 500 và log báo lỗi ghi file CSS.
 
-**Cause** — The `priv/static/css` directory does not exist in the container.
+**Nguyên nhân** — Thư mục `priv/static/css` không tồn tại trong container.
 
-**Fix** — Create the directory and retry:
+**Cách fix** — Tạo thư mục rồi thử lại:
 
 ```bash
 mkdir -p priv/static/css
 ```
 
-If you are running inside Docker, do this from `make bash` so the path is created in the container's volume.
+Nếu bạn chạy trong Docker, làm trong `make bash` để đường dẫn được tạo bên trong volume của container.

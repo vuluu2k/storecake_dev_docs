@@ -1,6 +1,6 @@
 ---
 sidebar_position: 3
-title: Rendering Pipeline
+title: 02 — Rendering
 ---
 
 # 02 — Rendering Pipeline

@@ -1,20 +1,20 @@
 # Website
 
-This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
+Site này được xây dựng bằng [Docusaurus](https://docusaurus.io/), một static site generator hiện đại.
 
-## Installation
+## Cài đặt
 
 ```bash
 yarn
 ```
 
-## Local Development
+## Chạy local
 
 ```bash
 yarn start
 ```
 
-This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
+Lệnh này khởi động dev server và mở trình duyệt. Phần lớn thay đổi được phản ánh ngay (live reload) mà không cần restart server.
 
 ## Build
 
@@ -22,20 +22,20 @@ This command starts a local development server and opens up a browser window. Mo
 yarn build
 ```
 
-This command generates static content into the `build` directory and can be served using any static contents hosting service.
+Lệnh này build site ra static HTML trong thư mục `build/`, có thể deploy lên bất kỳ static hosting nào.
 
-## Deployment
+## Deploy
 
-Using SSH:
+Dùng SSH:
 
 ```bash
 USE_SSH=true yarn deploy
 ```
 
-Not using SSH:
+Không dùng SSH:
 
 ```bash
-GIT_USER=<Your GitHub username> yarn deploy
+GIT_USER=<GitHub username của bạn> yarn deploy
 ```
 
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+Nếu host trên GitHub Pages, lệnh này sẽ build và push lên branch `gh-pages` luôn.

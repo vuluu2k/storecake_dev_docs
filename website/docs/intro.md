@@ -1,42 +1,42 @@
 ---
 slug: /
 sidebar_position: 1
-title: Storecake dev docs
-description: Developer documentation for the Webcake / Storecake platform.
+title: Webcake Docs
+description: Tài liệu kỹ thuật cho nền tảng Webcake / Storecake.
 ---
 
-# Storecake developer documentation
+# Tài liệu kỹ thuật Storecake
 
-Welcome to the Storecake / Webcake developer handbook. This site collects setup guides, architecture overviews, runbooks, and conventions for the three repositories that power the platform.
+Chào mừng bạn đến với bộ tài liệu dành cho lập trình viên Storecake / Webcake. Site này tập hợp hướng dẫn cài đặt, kiến trúc, runbook và quy ước cho ba repository chính của hệ thống, giúp bất kỳ kỹ sư nào cũng có thể nhanh chóng vào việc, đóng góp và phát hành an toàn.
 
-## Repositories at a glance
+## Ba dự án chính
 
-| Project | Repository | Role | Stack |
+| Dự án | Repository | Vai trò | Stack |
 | --- | --- | --- | --- |
-| **builderx_spa** | `pancake-vn/builderx_spa` | Storefront SPA + admin dashboard, also hosts BuilderX visual editor. | Vue 3 + Vite, Express SSR shell, Pinia, Ant Design Vue, TailwindCSS |
-| **builderx_api** | `pancake-vn/builderx_api` | Core Storecake backend — products, orders, accounts, integrations, real-time channels. | Phoenix (Elixir), PostgreSQL + Citus, Redis, RabbitMQ, Kafka, ElasticSearch, MongoDB |
-| **landing_page_backend** | `pancake-vn/landing_page_backend` | Webcake API — landing page builder, publish, analytics, lead capture. | Phoenix (Elixir), PostgreSQL (logical replication), Oban, Redis, RabbitMQ, Kafka |
+| **builderx_spa** | `pancake-vn/builderx_spa` | Storefront SPA + admin dashboard, đồng thời host visual editor BuilderX. | Vue 3 + Vite, Express SSR shell, Pinia, Ant Design Vue, TailwindCSS |
+| **builderx_api** | `pancake-vn/builderx_api` | Backend lõi của Storefront — sản phẩm, đơn hàng, tài khoản, tích hợp, real-time channels. | Phoenix (Elixir), PostgreSQL + Citus, Redis, RabbitMQ, Kafka, ElasticSearch, MongoDB |
+| **landing_page_backend** | `pancake-vn/landing_page_backend` | Webcake API — page builder, publish, analytics, capture lead. | Phoenix (Elixir), PostgreSQL (logical replication), Oban, Redis, RabbitMQ, Kafka |
 
-`builderx_spa` talks to both backends; `builderx_api` and `landing_page_backend` share Rabbit/Kafka clusters but own their own databases.
+`builderx_spa` gọi cả hai backend; `builderx_api` và `landing_page_backend` dùng chung cụm Rabbit/Kafka nhưng mỗi service có database riêng.
 
-## Where to start
+## Bắt đầu từ đâu
 
-- **New on the team?** Read [Setup](./setup.md) for prerequisites, then [Git flow](./git-flow.md) for branching conventions.
-- **Building the editor or admin UI?** Start with [Storecake Builder → Technology](./storecake-builder/technology.md) and [Architecture](./storecake-builder/architecture.md).
-- **Backend (commerce)?** Start with [Storecake API → Technology](./storecake-api/technology.md), [Architecture](./storecake-api/architecture.md), [Domains](./storecake-api/domains.md).
-- **Backend (landing/webcake)?** Start with [Webcake API → Technology](./webcake-api/technology.md), [Architecture](./webcake-api/architecture.md), [Workers & Queue](./webcake-api/workers.md).
+- **Mới vào team?** Đọc [Setup](./setup.md) để cài môi trường, rồi xem [Quy trình Git](./git-flow.md).
+- **Làm Storefront (UI)?** Bắt đầu với [Storefront → Công nghệ](./storecake-builder/technology.md) và [Architecture](./storecake-builder/architecture.md).
+- **Backend Storefront (commerce)?** Vào [Storefront API → Công nghệ](./storecake-api/technology.md), [Architecture](./storecake-api/architecture.md), [Domains](./storecake-api/domains.md).
+- **Backend Webcake (landing)?** Bắt đầu với [Webcake API → Công nghệ](./webcake-api/technology.md), [Architecture](./webcake-api/architecture.md), [Workers & Queue](./webcake-api/workers.md).
 
-## How each project section is organized
+## Cách tổ chức tài liệu
 
-Every project section follows the same outline so you know exactly where to look:
+Mỗi module dự án đều theo cùng dàn ý, giúp bạn luôn biết tìm gì ở đâu:
 
-1. **Technology** — stack overview, key dependencies, system requirements.
-2. **Architecture** — layers, supervision tree, request lifecycle.
-3. **Project structure** — directory map and naming conventions.
-4. **Domain-specific guides** — stores / routing / database / workers / integrations, depending on the project.
-5. **Installation** — clone, install, run locally with Docker or natively.
-6. **Environment variables** — every key, what it powers, where it comes from.
-7. **Build & Deploy** — release pipeline, Ansible, rollback.
-8. **Runbook / Troubleshooting** — operational commands and known issues.
+1. **Công nghệ** — tổng quan stack, dependency chính, yêu cầu hệ thống.
+2. **Architecture** — phân lớp, supervision tree, vòng đời request.
+3. **Project structure** — bản đồ thư mục, quy ước đặt tên.
+4. **Domain-specific guides** — stores / routing / database / workers / integrations tuỳ dự án.
+5. **Cài đặt** — clone, build, chạy local bằng Docker hoặc native.
+6. **Environment variables** — mọi key, công dụng, nguồn cấp.
+7. **Build & Deploy** — pipeline release, Ansible, rollback.
+8. **Runbook / Troubleshooting** — thao tác vận hành thường gặp và lỗi đã biết.
 
-If a page is missing or out of date, click **Edit this page** at the bottom — improvements from anyone are welcome.
+Nếu nội dung thiếu hoặc lỗi thời, click **Edit this page** ở cuối trang — mọi đóng góp đều được hoan nghênh.

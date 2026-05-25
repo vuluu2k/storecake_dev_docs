@@ -1,55 +1,55 @@
 ---
 sidebar_position: 1
-title: Technology
+title: Công nghệ
 ---
 
-# Technology
+# Công nghệ
 
-**builderx_api** is the core backend that powers the Storecake builder. It is built on the [Phoenix Framework](https://www.phoenixframework.org/) (Elixir) and serves REST APIs, real-time channels, and background workers for the entire product surface — store data, orders, accounts, integrations, and search.
+**builderx_api** là backend lõi cung cấp dữ liệu cho Storefront. Service được viết trên [Phoenix Framework](https://www.phoenixframework.org/) (Elixir) và phục vụ REST API, real-time channel, cũng như background worker cho toàn bộ sản phẩm — dữ liệu shop, đơn hàng, tài khoản, các tích hợp và search.
 
-## Key capabilities
+## Khả năng chính
 
-- RESTful APIs for products, orders, accounts, blogs, partner integrations, and more.
-- Real-time messaging over **Phoenix Channels** (WebSocket).
-- Multi-language, multi-site, and multi-tenant aware.
-- Integrations with **Elasticsearch**, **Redis**, **RabbitMQ**, **Kafka**, **S3**, and SMTP providers.
-- Role-based access control with OAuth and JWT authentication.
-- CI/CD-friendly: Docker, Ansible playbooks, and a project-level Makefile.
+- REST API cho sản phẩm, đơn hàng, tài khoản, blog, các tích hợp đối tác,...
+- Real-time qua **Phoenix Channels** (WebSocket).
+- Hỗ trợ đa ngôn ngữ, multi-site, multi-tenant.
+- Tích hợp **Elasticsearch**, **Redis**, **RabbitMQ**, **Kafka**, **S3**, SMTP.
+- Phân quyền theo role với OAuth và JWT.
+- Sẵn sàng CI/CD: Docker, Ansible playbook và Makefile ở cấp project.
 
-## System requirements
+## Yêu cầu hệ thống
 
-| Component | Version |
+| Thành phần | Phiên bản |
 | --- | --- |
 | Elixir | ≥ 1.12.2 |
 | Erlang / OTP | ≥ 24 |
-| Node.js | ≥ 14 (for `assets/`) |
-| PostgreSQL | Citus-flavored Postgres (recommended) |
-| Docker · Docker Compose | Latest stable (recommended) |
-| Redis · RabbitMQ · Elasticsearch | Required for the full feature set |
+| Node.js | ≥ 14 (cho `assets/`) |
+| PostgreSQL | Bản Citus của Postgres (khuyến nghị) |
+| Docker · Docker Compose | Bản stable mới nhất (khuyến nghị) |
+| Redis · RabbitMQ · Elasticsearch | Bắt buộc nếu muốn dùng đầy đủ tính năng |
 
-## Repository layout
+## Cấu trúc repository
 
 ```
 builderx_api/
 ├── lib/
-│   ├── builderx_api/          # Business logic — products, orders, accounts, integrations
-│   └── builderx_api_web/      # Web layer — controllers, routers, channels, views, plugs
+│   ├── builderx_api/          # Logic nghiệp vụ — sản phẩm, đơn hàng, tài khoản, tích hợp
+│   └── builderx_api_web/      # Web layer — controller, router, channel, view, plug
 ├── assets/                    # Frontend assets (Vue 3, Ant Design Vue, Webpack)
-├── priv/repo/                 # Migrations and seeds
+├── priv/repo/                 # Migration và seed
 ├── test/                      # Test suite
-├── ansible/                   # Deployment playbooks
+├── ansible/                   # Playbook deploy
 ├── mix.exs
-└── Makefile                   # Dev, build, and deploy shortcuts
+└── Makefile                   # Shortcut dev, build, deploy
 ```
 
-## Makefile shortcuts
+## Lệnh Makefile
 
-| Command | What it does |
+| Lệnh | Tác dụng |
 | --- | --- |
-| `make build` | Rebuild the Docker image. |
-| `make app` | Run the app inside Docker. |
-| `make services` | Start supporting services (Redis, RabbitMQ, …). |
-| `make migrate` | Run database migrations inside the container. |
-| `make deploy` | Deploy to production via Ansible. |
-| `make dev` | Run in development mode with hot reload. |
-| `make bash` | Open a shell inside the running container. |
+| `make build` | Rebuild Docker image. |
+| `make app` | Chạy app trong Docker. |
+| `make services` | Bật các service phụ trợ (Redis, RabbitMQ,...). |
+| `make migrate` | Chạy migration database bên trong container. |
+| `make deploy` | Deploy lên production qua Ansible. |
+| `make dev` | Chạy ở chế độ dev với hot reload. |
+| `make bash` | Mở shell trong container đang chạy. |

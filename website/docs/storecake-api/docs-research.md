@@ -1,24 +1,24 @@
 ---
 sidebar_position: 12
-title: Docs research
+title: Tài liệu tham khảo
 ---
 
-# Docs research
+# Tài liệu tham khảo
 
-External references that the team relies on when working on **builderx_api**.
+Các tài liệu bên ngoài team thường tra cứu khi làm việc với **builderx_api**.
 
 ## Core
 
-- [Phoenix Guides](https://hexdocs.pm/phoenix/overview.html) — controllers, routers, channels, plugs.
-- [Elixir Lang](https://elixir-lang.org/) — language reference and getting-started guides.
-- [Ecto](https://hexdocs.pm/ecto/Ecto.html) — schemas, changesets, queries, migrations.
+- [Phoenix Guides](https://hexdocs.pm/phoenix/overview.html) — controller, router, channel, plug.
+- [Elixir Lang](https://elixir-lang.org/) — tài liệu ngôn ngữ và hướng dẫn bắt đầu.
+- [Ecto](https://hexdocs.pm/ecto/Ecto.html) — schema, changeset, query, migration.
 
 ## Frontend assets
 
-- [Vue.js](https://vuejs.org/) — used by the bundled `assets/` admin UI.
+- [Vue.js](https://vuejs.org/) — UI admin đi kèm trong `assets/`.
 
-## Adjacent services
+## Service kế cận
 
-- [Elasticsearch Reference](https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html) — the search backend behind product indexing.
-- [RabbitMQ Tutorials](https://www.rabbitmq.com/getstarted.html) — message broker used for background tasks and indexing.
-- [Phoenix Channels](https://hexdocs.pm/phoenix/channels.html) — real-time messaging primitives.
+- [Elasticsearch Reference](https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html) — search engine phía sau hệ thống index sản phẩm.
+- [RabbitMQ Tutorials](https://www.rabbitmq.com/getstarted.html) — message broker dùng cho background task và indexing.
+- [Phoenix Channels](https://hexdocs.pm/phoenix/channels.html) — primitive cho real-time messaging.

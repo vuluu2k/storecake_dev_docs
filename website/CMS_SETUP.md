@@ -40,7 +40,7 @@ Commit + push.
 
 1. Mở `https://<your-domain>/admin/`
 2. Click **Login with GitHub** → authorize app
-3. Vào dashboard CMS → thấy các collections: Top-level pages, Storecake Builder, Storecake API, Webcake API
+3. Vào dashboard CMS → thấy các collections: Top-level pages, Storefront, Storefront API, Webcake API
 4. Edit thử 1 file → **Publish** → GitHub có commit mới → Vercel rebuild.
 
 ## Editorial workflow

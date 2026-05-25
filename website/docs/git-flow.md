@@ -1,51 +1,51 @@
 ---
 sidebar_position: 3
-title: Git flow
+title: Quy trình Git
 ---
 
-# Git flow
+# Quy trình Git
 
-We use a lightweight Git Flow with three long-lived branches and short-lived feature branches.
+Team dùng một biến thể nhẹ của Git Flow: ba branch dài hạn và các branch feature ngắn hạn.
 
-![Git flow overview](/img/gitbook/image.png)
+![Tổng quan quy trình Git](/img/gitbook/image.png)
 
-## Long-lived branches
+## Branch dài hạn
 
-| Branch | Purpose |
+| Branch | Vai trò |
 | --- | --- |
-| `master` | Production. Only hotfixes and release merges land here. |
-| `develop` | Integration branch for upcoming releases. All testing happens here. |
-| `feature/*`, `hotfix/*` | Short-lived branches owned by a single engineer. |
+| `master` | Production. Chỉ nhận hotfix và merge release. |
+| `develop` | Branch tích hợp cho release sắp tới. Mọi QA test trên branch này. |
+| `feature/*`, `hotfix/*` | Branch ngắn hạn, mỗi kỹ sư sở hữu một branch. |
 
-## Day-to-day workflow
+## Quy trình hằng ngày
 
-1. **Start a feature**
-   - Branch from `master` for a hotfix, or from the latest `develop` for a new feature.
-   - Name the branch after the work, e.g. `feature/product-search`, `hotfix/checkout-redirect`.
+1. **Bắt đầu một feature**
+   - Tạo branch từ `master` nếu là hotfix, hoặc từ bản mới nhất của `develop` nếu là feature mới.
+   - Đặt tên branch theo nội dung công việc, ví dụ `feature/product-search`, `hotfix/checkout-redirect`.
 
-2. **Develop and test**
-   - Commit small, focused changes locally on your feature branch.
-   - When the feature is ready for QA, create a personal integration branch (for example `feature/product-search-dev`) off `develop`.
-   - Merge, rebase, or cherry-pick your feature branch into that integration branch and resolve any conflicts there — never on `develop`.
+2. **Phát triển và test**
+   - Commit nhỏ, gọn, tập trung trên branch feature của bạn.
+   - Khi feature sẵn sàng cho QA, tạo branch tích hợp cá nhân (ví dụ `feature/product-search-dev`) từ `develop`.
+   - Merge / rebase / cherry-pick branch feature của bạn vào branch tích hợp đó và xử lý conflict tại đây — đừng bao giờ giải quyết conflict trực tiếp trên `develop`.
 
-3. **Open a pull request**
-   - Open the PR from your integration branch into `develop`.
-   - Link the related issue(s) in the description and reference them in commits using `#<issue_id>` (e.g. `feat(builder): add product search #1234`).
+3. **Mở Pull Request**
+   - Mở PR từ branch tích hợp của bạn vào `develop`.
+   - Link issue liên quan trong mô tả PR và tham chiếu issue ID trong commit message dạng `#<issue_id>` (ví dụ `feat(builder): add product search #1234`).
 
-![Pull request example 1](/img/gitbook/Screenshot%202025-07-26%20at%2011.45.14.png)
+![Ví dụ Pull Request 1](/img/gitbook/Screenshot%202025-07-26%20at%2011.45.14.png)
 
-![Pull request example 2](/img/gitbook/Screenshot%202025-07-26%20at%2011.40.27.png)
+![Ví dụ Pull Request 2](/img/gitbook/Screenshot%202025-07-26%20at%2011.40.27.png)
 
-## Commit message conventions
+## Quy ước commit message
 
-- Use the imperative mood: "Add", "Fix", "Refactor" — not "Added" or "Fixes".
-- Prefix with a scope when helpful: `feat(api):`, `fix(builder):`, `chore(deps):`.
-- Always reference the issue id at the end of the subject or in the body: `#1234`.
-- Keep the subject under 72 characters; put the detailed explanation in the body.
+- Dùng động từ mệnh lệnh: "Add", "Fix", "Refactor" — không phải "Added" hay "Fixes".
+- Khi cần thì thêm scope vào đầu: `feat(api):`, `fix(builder):`, `chore(deps):`.
+- Luôn tham chiếu issue ID ở cuối tiêu đề hoặc trong body: `#1234`.
+- Giữ tiêu đề dưới 72 ký tự; mô tả chi tiết để trong phần body.
 
-## Review checklist before merging
+## Checklist trước khi merge
 
-- The branch is rebased on the latest `develop` (or `master` for hotfixes).
-- CI is green.
-- At least one reviewer has approved.
-- All linked issues are referenced and ready to be closed.
+- Branch đã rebase trên `develop` mới nhất (hoặc `master` nếu là hotfix).
+- CI xanh.
+- Có ít nhất một reviewer approve.
+- Mọi issue đã được link và sẵn sàng đóng.

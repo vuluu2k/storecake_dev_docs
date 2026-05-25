@@ -1,52 +1,52 @@
 ---
 sidebar_position: 1
-title: Technology
+title: Công nghệ
 ---
 
-# Technology
+# Công nghệ
 
-**landing_page_backend** is the Phoenix service behind every published Webcake/Storecake landing page. Where `builderx_api` powers the editor experience, this service powers the **runtime**: serving public pages, capturing leads, and feeding analytics and integrations.
+**landing_page_backend** là service Phoenix đứng sau mọi landing page đã publish của Webcake/Storecake. Trong khi `builderx_api` phục vụ trải nghiệm editor, service này phụ trách **runtime**: serve trang công khai, capture lead, đẩy dữ liệu sang analytics và các tích hợp khác.
 
-## Key capabilities
+## Khả năng chính
 
-- Public APIs for landing pages, forms, and lead capture.
-- Background processing with **Oban** and **GenRMQ** (RabbitMQ).
-- Email delivery via **Bamboo + SMTP**.
-- Object storage on **S3** with image processing through **Vix** and **Thumbnex**.
-- Google Workspace integrations (Sheets, Drive).
-- Scheduled jobs via **Quantum**.
-- Error reporting through **Sentry**.
+- API công khai cho landing page, form và capture lead.
+- Background processing với **Oban** và **GenRMQ** (RabbitMQ).
+- Gửi email qua **Bamboo + SMTP**.
+- Object storage trên **S3** với xử lý ảnh bằng **Vix** và **Thumbnex**.
+- Tích hợp Google Workspace (Sheets, Drive).
+- Scheduled job qua **Quantum**.
+- Error reporting qua **Sentry**.
 
-## System requirements
+## Yêu cầu hệ thống
 
-| Component | Version |
+| Thành phần | Phiên bản |
 | --- | --- |
 | Elixir | ≥ 1.12.2 |
 | Erlang / OTP | ≥ 24 |
-| Node.js | ≥ 14 (for `assets/`) |
-| PostgreSQL | Latest 14.x line |
-| Docker · Docker Compose | Latest stable (recommended) |
-| Redis · RabbitMQ | Required for the full feature set |
+| Node.js | ≥ 14 (cho `assets/`) |
+| PostgreSQL | Bản 14.x mới nhất |
+| Docker · Docker Compose | Bản stable mới nhất (khuyến nghị) |
+| Redis · RabbitMQ | Bắt buộc cho đầy đủ tính năng |
 
-## Repository layout
+## Cấu trúc repository
 
 ```
 landing_page_backend/
 ├── lib/
-│   ├── landing_page/          # Business logic — pages, leads, integrations, workers
-│   └── landing_page_web/      # Web layer — controllers, routers, plugs
-├── assets/                    # Public-facing assets
-├── priv/repo/                 # Migrations and seeds
+│   ├── landing_page/          # Logic nghiệp vụ — page, lead, tích hợp, worker
+│   └── landing_page_web/      # Web layer — controller, router, plug
+├── assets/                    # Asset public
+├── priv/repo/                 # Migration và seed
 ├── test/                      # Test suite
-├── ansible/                   # Deployment playbooks
+├── ansible/                   # Playbook deploy
 ├── mix.exs
-└── Makefile                   # Dev and deploy shortcuts
+└── Makefile                   # Shortcut dev và deploy
 ```
 
-## Makefile shortcuts
+## Lệnh Makefile
 
-| Command | What it does |
+| Lệnh | Tác dụng |
 | --- | --- |
-| `make app` | Run the app in Docker. |
-| `make dev` | Run in development mode with hot reload. |
-| `make bash` | Open a shell inside the running container. |
+| `make app` | Chạy app trong Docker. |
+| `make dev` | Chạy ở chế độ dev với hot reload. |
+| `make bash` | Mở shell trong container đang chạy. |

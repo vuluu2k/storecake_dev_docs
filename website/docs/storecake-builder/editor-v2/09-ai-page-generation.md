@@ -1,6 +1,6 @@
 ---
-sidebar_position: 9
-title: 09 — AI Page Generation (Plan)
+sidebar_position: 10
+title: 09 — AI Page Generation
 ---
 
 # 09 — AI Page Generation (Plan)

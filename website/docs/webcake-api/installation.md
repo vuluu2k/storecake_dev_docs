@@ -1,65 +1,65 @@
 ---
 sidebar_position: 5
-title: Installation
+title: Cài đặt
 ---
 
-# Installation
+# Cài đặt
 
-The recommended workflow uses Docker so the Elixir, Postgres, and supporting-service versions stay aligned across the team.
+Quy trình khuyến nghị là dùng Docker để mọi máy đều có cùng phiên bản Elixir, Postgres và các service phụ trợ.
 
-## Prerequisites
+## Yêu cầu chuẩn bị
 
-- Docker and Docker Compose, **or** Elixir 1.12.x · Erlang/OTP 24 · Node.js 14+ installed locally.
-- Access to the `pancake-vn` GitHub organization.
+- Docker và Docker Compose, **hoặc** Elixir 1.12.x · Erlang/OTP 24 · Node.js 14+ đã cài trên máy.
+- Quyền truy cập tổ chức `pancake-vn` trên GitHub.
 
-## 1. Clone the repository
+## 1. Clone repository
 
 ```bash
 git clone git@github.com:pancake-vn/landing_page_backend.git
 cd landing_page_backend
 ```
 
-## 2. Build the Docker image
+## 2. Build Docker image
 
 ```bash
 docker compose build landing-page
 ```
 
-## 3. Start the app
+## 3. Khởi động app
 
 ```bash
 make app
-# or, for hot reload in development:
+# hoặc, để có hot reload khi dev:
 make dev
 ```
 
-## 4. Install dependencies and set up the database
+## 4. Cài dependency và setup database
 
-Open a shell inside the running container:
+Mở shell trong container đang chạy:
 
 ```bash
 make bash
 ```
 
-Inside the container:
+Bên trong container:
 
 ```bash
 mix deps.get
 mix ecto.setup
 ```
 
-`mix ecto.setup` creates the database, runs migrations, and seeds initial data.
+`mix ecto.setup` sẽ tạo database, chạy migration và seed dữ liệu khởi tạo.
 
-## 5. Install Node.js dependencies for `assets/`
+## 5. Cài Node.js dependency cho `assets/`
 
-Still inside the container:
+Vẫn bên trong container:
 
 ```bash
 cd ./assets && npm install
 ```
 
-## Verifying the setup
+## Kiểm tra setup
 
-- Phoenix should be listening on [http://localhost:4000](http://localhost:4000).
-- `mix phx.routes` lists every registered route.
-- Tail the logs with `docker compose logs -f landing-page` from the host.
+- Phoenix phải đang lắng nghe tại [http://localhost:4000](http://localhost:4000).
+- Lệnh `mix phx.routes` liệt kê toàn bộ route đã đăng ký.
+- Tail log từ máy host bằng `docker compose logs -f landing-page`.
