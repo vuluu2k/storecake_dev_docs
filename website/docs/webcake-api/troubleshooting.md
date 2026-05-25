@@ -1,105 +1,105 @@
 ---
 sidebar_position: 12
-title: Troubleshooting
+title: Xử lý sự cố
 ---
 
-# Troubleshooting
+# Xử lý sự cố
 
-Common issues when operating `landing_page_backend`. Add new ones as you encounter them.
+Vấn đề thường gặp khi vận hành `landing_page_backend`. Bổ sung khi gặp lỗi mới.
 
-## 1. `landing-page` container won't boot
+## 1. Container `landing-page` không khởi động
 
-- Read the log: `docker compose logs landing-page --tail=200`.
-- `key :xxx not found` → an env is missing. Check [Environment](./environment.md), update `.env`, restart.
+- Đọc log: `docker compose logs landing-page --tail=200`.
+- `key :xxx not found` → thiếu env. Đối chiếu [Biến môi trường](./environment.md), bổ sung `.env`, restart.
 
-## 2. Oban queue stuck
+## 2. Queue Oban bị kẹt
 
-Symptom: pending count grows, queue does not drain.
+Triệu chứng: số job pending tăng dần, không drain.
 
-- Verify queue concurrency > 0 in config.
-- IEx: `Oban.check_queue(:default)`; if `paused: true`, run `Oban.resume_queue(queue: :default)`.
-- Jobs failing repeatedly: inspect `errors` in `oban_jobs`, fix root cause or bump `max_attempts`.
+- Kiểm tra concurrency của queue > 0 trong config.
+- Trong IEx: `Oban.check_queue(:default)`; nếu `paused: true` thì `Oban.resume_queue(queue: :default)`.
+- Job fail liên tục: xem trường `errors` trong bảng `oban_jobs`, sửa nguyên nhân gốc hoặc tăng `max_attempts`.
 
-## 3. Logical replication lag
+## 3. Logical replication bị lag
 
-- Check `select * from pg_stat_replication;` on the primary.
-- Lag rising during bulk inserts: smaller batches + throttle workers.
-- Publication broken after a migration: re-run `make init-primary` + `make init-replica`.
+- Kiểm tra `select * from pg_stat_replication;` trên primary.
+- Lag tăng khi bulk insert: chia batch nhỏ hơn, throttle worker.
+- Publication hỏng sau migration: chạy lại `make init-primary` + `make init-replica`.
 
-## 4. Rabbit consumer not consuming
+## 4. Rabbit consumer không nhận message
 
-- Rabbit UI (`http://localhost:15672`) — verify queue messages + `consumers ≥ 1`.
-- Restart the supervisor: `LandingPage.Rabbit.Supervisor.restart_consumers()`.
-- Connection issue: re-check `R_HOST`, `R_USERNAME`, password.
+- Mở Rabbit UI (`http://localhost:15672`) — kiểm tra queue có message và `consumers ≥ 1`.
+- Restart supervisor: `LandingPage.Rabbit.Supervisor.restart_consumers()`.
+- Lỗi kết nối: kiểm tra lại `R_HOST`, `R_USERNAME`, password.
 
-## 5. Kafka producer timeout
+## 5. Producer Kafka timeout
 
-- `KAFKA1_HOST` / `KAFKA2_HOST` correct (Docker network?).
-- Producer needs `metadata` topic — make sure topics are created.
-- Bump `request_timeout` in config if the cluster is slow.
+- `KAFKA1_HOST` / `KAFKA2_HOST` đúng (network Docker?).
+- Producer cần topic `metadata` — đảm bảo topic đã được tạo.
+- Tăng `request_timeout` trong config nếu cluster chậm.
 
-## 6. Stripe / Paypal webhook signature mismatch
+## 6. Webhook Stripe / Paypal sai chữ ký
 
-- `STRIPE_WEBHOOK_SECRET_KEY` matches the env (test vs live).
-- Paypal: confirm `PAYPAL_HOST` (`sandbox.paypal.com` vs `paypal.com`).
-- Server clock skewed? Sync NTP.
+- `STRIPE_WEBHOOK_SECRET_KEY` khớp môi trường (test so với live).
+- Paypal: kiểm tra `PAYPAL_HOST` (`sandbox.paypal.com` so với `paypal.com`).
+- Đồng hồ server lệch — đồng bộ NTP.
 
-## 7. Domain verify keeps failing
+## 7. Verify domain mãi không pass
 
-- TXT record propagated? `dig TXT yourdomain.com`.
-- The domain worker (`domain_worker.ex`) may be in backoff — `Oban.retry_job/1`.
+- TXT đã propagate? `dig TXT yourdomain.com`.
+- Domain worker (`domain_worker.ex`) có thể đang backoff — `Oban.retry_job/1`.
 
-## 8. Let's Encrypt SSL failing
+## 8. SSL Let's Encrypt fail
 
-- Make sure port 80 is open and Nginx forwards `/.well-known/acme-challenge/`.
-- LE rate limit: 5 issuances per domain per week.
+- Mở port 80 và Nginx forward đúng `/.well-known/acme-challenge/`.
+- Giới hạn LE: 5 lần issue mỗi domain mỗi tuần.
 
-## 9. Leads not reaching CRM
+## 9. Lead không đến được CRM
 
-- `form_data_worker` failing — check Sentry.
-- CRM endpoint changed → update the integration module.
-- Exponential backoff means retries can be ~1 hour apart.
+- `form_data_worker` lỗi — xem Sentry.
+- Endpoint CRM đổi → cập nhật module tích hợp.
+- Backoff exponential khiến retry có thể cách nhau hàng giờ.
 
 ## 10. Mongo connection refused
 
-- Mongo not required for default flows, but if a plugin / job touches Mongo, ensure the container in `docker-compose-services.yml` is up.
+- Mongo không bắt buộc cho luồng mặc định, nhưng nếu plugin / job dùng Mongo, đảm bảo container trong `docker-compose-services.yml` đã chạy.
 
-## 11. Migration hangs
+## 11. Migration treo
 
-- Likely a lock on a large table. Split: add a nullable column, backfill via a worker, then add constraint.
-- Inspect `pg_stat_activity` to see which transaction is blocking.
+- Thường do lock bảng lớn. Tách thành: thêm cột nullable, backfill bằng worker, sau đó add constraint.
+- Theo dõi `pg_stat_activity` để biết transaction nào đang block.
 
-## 12. Env reload does not take effect
+## 12. Đổi env không có hiệu lực
 
-- Phoenix reads `Application` config at boot. Edit `.env`, restart the container.
+- Phoenix đọc config khi boot. Sửa `.env` xong cần restart container.
 
-## 13. Telegram alerts not firing
+## 13. Cảnh báo Telegram không bắn
 
-- `TELEBOT_ALERT_TOKEN` invalid or the bot was blocked.
-- `TELEGROUP_ALERT` is a negative number (group / supergroup).
+- `TELEBOT_ALERT_TOKEN` không hợp lệ hoặc bot đã bị block.
+- `TELEGROUP_ALERT` phải là số âm (group / supergroup).
 
-## 14. AI provider 429s
+## 14. AI provider 429
 
-- `DEEPINFRA_API_KEY` / `GEMINI_API_KEY` exhausted.
-- AI workers should use exponential retry + circuit breaker.
+- `DEEPINFRA_API_KEY` / `GEMINI_API_KEY` đã hết quota.
+- Worker AI nên dùng retry tăng dần + circuit breaker.
 
-## 15. Public API returns 401 on landing publish
+## 15. Public API trả 401 ở luồng publish landing
 
-- `public_api_router.ex` does not require a user JWT but does verify a signed key — check the header (e.g. `X-Storecake-Signature`).
-- Confirm `STORECAKE_SECRET_KEY` matches what `builderx_api` is signing with.
+- `public_api_router.ex` không cần JWT user nhưng yêu cầu chữ ký — kiểm tra header (ví dụ `X-Storecake-Signature`).
+- `STORECAKE_SECRET_KEY` phải khớp với khoá đang ký bên `builderx_api`.
 
-## 16. CMS file 404 on the storefront
+## 16. File CMS 404 trên storefront
 
-- Asset was not uploaded to the public bucket. Verify `S3_BUCKET_PUBLIC` and that the bucket CORS allows the storefront domain.
+- Asset chưa upload lên bucket public. Kiểm tra `S3_BUCKET_PUBLIC` và CORS bucket cho phép domain storefront.
 
-## 17. `iex --remsh` cannot connect
+## 17. `iex --remsh` không kết nối
 
-- Wrong Erlang cookie. Use the release cookie (`bin/landing_page rpc`).
-- EPMD (port 4369) must be reachable between host and node.
+- Sai cookie Erlang. Dùng cookie của release (`bin/landing_page rpc`).
+- EPMD (port 4369) phải reachable giữa host và node.
 
-## 18. When to escalate
+## 18. Khi nào escalate
 
-- Prod incident > 5 minutes (publish failing, leads dropping) → open the incident channel + page ops.
-- Replication drop > 1 minute → page the DBA immediately (analytics data loss compounds quickly).
+- Sự cố prod kéo dài > 5 phút (publish hỏng, mất lead) → mở incident channel, gọi ops.
+- Replica drop > 1 phút → ping DBA ngay (mất dữ liệu analytics nhanh).
 
-When you solve a new issue, **add it here** so the next person finds it.
+Mỗi khi xử lý xong một vấn đề mới, **thêm vào đây** để người sau tra cứu được.

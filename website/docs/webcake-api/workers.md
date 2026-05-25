@@ -1,21 +1,21 @@
 ---
 sidebar_position: 7
-title: Workers (Oban) & Queue
+title: Worker (Oban) và Queue
 ---
 
-# Workers (Oban) & Queue
+# Worker (Oban) và Queue
 
-`landing_page_backend` runs background work with **Oban** (DB-backed) alongside **RabbitMQ** for cross-service jobs and **Kafka** for event streaming. Oban worker modules live in `lib/workers/`.
+`landing_page_backend` chạy job nền bằng **Oban** (DB-backed), kết hợp **RabbitMQ** cho job cross-service và **Kafka** cho event stream. Module worker Oban nằm trong `lib/workers/`.
 
 ## Oban
 
-### Config
+### Cấu hình
 
-- Queues + plugins are declared in `config/*.exs` (`:landing_page, Oban`).
-- Oban migration is already present in `priv/repo/migrations/`.
-- DB-backed means jobs survive node restarts.
+- Khai báo queue + plugin ở `config/*.exs` (`:landing_page, Oban`).
+- Migration của Oban đã có sẵn trong `priv/repo/migrations/`.
+- DB-backed nên job vẫn còn sau khi restart node.
 
-Example config:
+Ví dụ cấu hình:
 
 ```elixir
 config :landing_page, Oban,
@@ -37,7 +37,7 @@ config :landing_page, Oban,
   ]
 ```
 
-### Each worker
+### Mẫu worker
 
 ```elixir
 defmodule LandingPage.Workers.EmailWorker do
@@ -50,31 +50,31 @@ defmodule LandingPage.Workers.EmailWorker do
 end
 ```
 
-- Long jobs: tune `max_attempts` + backoff.
-- Idempotent jobs: add `unique: [period: 60]` to avoid duplicates.
+- Job dài: tinh chỉnh `max_attempts` + backoff.
+- Job idempotent: thêm `unique: [period: 60]` để tránh trùng lặp.
 - Enqueue: `Oban.insert(EmailWorker.new(%{...}))`.
 
-### Inventory
+### Danh mục worker
 
-| File | Purpose |
+| Tệp | Mục đích |
 | --- | --- |
-| `analytics_worker.ex` | Aggregates analytics events, writes to QuestDB / Postgres. |
-| `botcake_worker.ex` | Bridges into Botcake (chatbot). |
-| `domain_worker.ex` | Verifies domain TXT + SSL. |
-| `draft_form_worker.ex` | Processes draft form leads. |
-| `email_worker.ex` | Sends transactional email. |
-| `form_data_worker.ex` | Pushes leads into CRM / Sheets / webhooks. |
-| `google_worker.ex` | Google Ads / Sheets / Drive jobs. |
-| `indexing_worker.ex` | Updates Elastic indexes. |
-| `main_worker.ex` | Generic fallback. |
-| `partner_service_worker.ex` | Sync partner services. |
-| `susa_worker.ex` | Susa sync. |
-| `task_pool_worker.ex` | Sequential generic tasks. |
-| `transactions_worker.ex` | Transaction reconciliation. |
+| `analytics_worker.ex` | Gộp event analytics, ghi vào QuestDB / Postgres. |
+| `botcake_worker.ex` | Cầu nối tới Botcake (chatbot). |
+| `domain_worker.ex` | Verify domain TXT + SSL. |
+| `draft_form_worker.ex` | Xử lý lead dạng draft. |
+| `email_worker.ex` | Gửi email transactional. |
+| `form_data_worker.ex` | Đẩy lead sang CRM / Sheet / webhook. |
+| `google_worker.ex` | Job Google Ads / Sheet / Drive. |
+| `indexing_worker.ex` | Cập nhật index Elasticsearch. |
+| `main_worker.ex` | Fallback tổng quát. |
+| `partner_service_worker.ex` | Đồng bộ partner service. |
+| `susa_worker.ex` | Đồng bộ Susa. |
+| `task_pool_worker.ex` | Task tuần tự tổng quát. |
+| `transactions_worker.ex` | Đối soát giao dịch. |
 
-Add new workers to this table when you create them.
+Khi tạo worker mới, bổ sung vào bảng trên.
 
-### Cron via Oban
+### Cron qua Oban
 
 ```elixir
 {Oban.Plugins.Cron, crontab: [
@@ -85,39 +85,39 @@ Add new workers to this table when you create them.
 
 ### Quantum (`LandingPage.Scheduler`)
 
-- A few cron jobs use Quantum (`lib/landing_page/scheduler.ex`, `schedules/`) for legacy or branching workflows.
-- Rule of thumb:
-  - Simple, idempotent cron → Oban Cron plugin.
-  - Branching workflow → Quantum with its own module.
+- Một vài cron dùng Quantum (`lib/landing_page/scheduler.ex`, `schedules/`) cho legacy hoặc workflow có nhánh.
+- Quy tắc chọn:
+  - Cron đơn giản, idempotent → Oban Cron plugin.
+  - Workflow phân nhánh → Quantum với module riêng.
 
-## Queue abstraction (`lib/queue/`)
+## Abstraction queue (`lib/queue/`)
 
-A wrapper around Rabbit / Oban / Kafka. Controllers should not call `AMQP.Basic.publish` directly — go through `LandingPage.Queue.publish/3`.
+Lớp wrap cho Rabbit / Oban / Kafka. Controller không nên gọi `AMQP.Basic.publish` trực tiếp — dùng `LandingPage.Queue.publish/3`.
 
 ## RabbitMQ
 
-- Consumers live in `lib/rabbit/` (`use GenRMQ.Consumer`).
-- Topology declared in `LandingPage.Rabbit.Topology`.
-- New consumers must register in `Rabbit.Supervisor`.
+- Consumer ở `lib/rabbit/` (`use GenRMQ.Consumer`).
+- Topology khai báo trong `LandingPage.Rabbit.Topology`.
+- Consumer mới phải đăng ký trong `Rabbit.Supervisor`.
 
 ## Kafka
 
-- Producers + consumers in `lib/event_streaming/`.
-- Consumer group naming: `webcake.<service>.<topic>`.
-- Producer helper: `EventStreaming.publish/3`.
+- Producer + consumer trong `lib/event_streaming/`.
+- Đặt tên consumer group: `webcake.<service>.<topic>`.
+- Helper producer: `EventStreaming.publish/3`.
 
 ## Outbox
 
-- `lib/outbox/`: writes outbox rows inside a transaction, background dispatcher fans out to queues / webhooks.
-- Use for at-least-once flows (lead → CRM, transaction → bank).
+- `lib/outbox/`: ghi dòng outbox trong cùng transaction; dispatcher nền sẽ đẩy ra queue / webhook.
+- Dùng cho các luồng cần at-least-once (lead → CRM, transaction → bank).
 
-## Monitoring
+## Theo dõi
 
-- **Oban Web UI** (if installed): browse queues, retry, kill.
-- `Oban.check_queue(:default)` for runtime state.
+- **Oban Web UI** (nếu cài): xem queue, retry, kill.
+- `Oban.check_queue(:default)` cho trạng thái runtime.
 - `Oban.retry_job(job_id)` / `Oban.cancel_job(job_id)`.
 
-In IEx:
+Trong IEx:
 
 ```elixir
 import Ecto.Query
@@ -126,16 +126,16 @@ from(j in Oban.Job, group_by: j.queue, select: {j.queue, count(j.id)})
 |> LandingPage.Repo.all()
 ```
 
-## Best practices
+## Best practice
 
-- Workers must be **idempotent** — running twice should not create duplicates.
-- Pass the minimum payload (`%{form_id: id}`) and re-fetch state in `perform/1`.
-- Catch, log, then re-raise so Sentry captures the stacktrace.
-- A queue that's permanently pending usually has `concurrency: 0` — check config when an alert fires.
+- Worker phải **idempotent** — chạy hai lần không tạo dữ liệu trùng.
+- Truyền payload tối thiểu (`%{form_id: id}`) và load lại state trong `perform/1`.
+- Catch lỗi, log, sau đó re-raise để Sentry có stacktrace.
+- Queue luôn pending thường do `concurrency: 0` — kiểm tra config khi cảnh báo nổi lên.
 
-## See also
+## Xem thêm
 
-- [Architecture](./architecture.md)
-- [Database](./database.md)
-- [Integrations](./integrations.md)
-- [Environment](./environment.md)
+- [Kiến trúc](./architecture.md)
+- [Cơ sở dữ liệu](./database.md)
+- [Tích hợp](./integrations.md)
+- [Biến môi trường](./environment.md)

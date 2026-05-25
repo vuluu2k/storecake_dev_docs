@@ -1,13 +1,13 @@
 ---
 sidebar_position: 7
-title: API layer
+title: Tầng API
 ---
 
-# API layer
+# Tầng API
 
-The `src/api/` layer owns all HTTP/HTTPS traffic to backends (`builderx_api`, `landing_page_backend`, occasional third parties). Its goals: a single axios interceptor stack, request deduplication, easy mocking, and views that do not care about transport details.
+Tầng `src/api/` đảm nhiệm toàn bộ HTTP/HTTPS đi tới các backend (`builderx_api`, `landing_page_backend`, một số bên thứ ba). Mục tiêu: một bộ interceptor axios duy nhất, gộp request trùng, dễ mock, view không phải bận tâm tới chi tiết transport.
 
-## Flow
+## Luồng
 
 ```text
 View / Composable
@@ -15,13 +15,13 @@ View / Composable
        ▼
 @/api/<feature>Api    →   axiosClient   →   server.js (proxy) → backend
        │                     ▲
-       └─ inFlightPool ──────┘ (dedupe identical inflight requests)
+       └─ inFlightPool ──────┘ (gộp request trùng đang chờ)
 ```
 
-## Key files
+## Tệp chính
 
-- `axiosClient.js` — single axios instance (baseURL, `Authorization`, `Accept-Language`, timeout, 401/403 interceptors, light retry).
-- `baseApi.js` — factory for CRUD endpoints:
+- `axiosClient.js` — instance axios duy nhất (baseURL, `Authorization`, `Accept-Language`, timeout, interceptor 401/403, retry nhẹ).
+- `baseApi.js` — factory tạo endpoint CRUD:
 
   ```js
   const productApi = baseApi('products');
@@ -32,9 +32,9 @@ View / Composable
   productApi.remove(id);
   ```
 
-- `inFlightPool.ts` — keyed pool that returns the same Promise for identical inflight requests.
+- `inFlightPool.ts` — pool gộp theo `(method, url, params)` để các caller cùng request nhận chung một Promise.
 
-## Writing an API module
+## Viết một module API
 
 ```js
 // src/api/orderApi.js
@@ -62,38 +62,38 @@ const orderApi = {
 export default orderApi;
 ```
 
-Rules:
+Quy ước:
 
-- One file per feature: `<feature>Api.js`.
-- Default-export an object of async methods.
-- Throw the original axios error — do not wrap. The store/view decides how to react.
-- Do not touch stores or mutate state from an API module.
+- Một tệp cho mỗi feature: `<feature>Api.js`.
+- Export mặc định một object chứa các method async.
+- Ném lại lỗi gốc của axios — không bọc trong lớp Error riêng. Store hoặc view tự quyết cách xử lý.
+- Không truy cập store hay mutate state từ module API.
 
-## Interceptors
+## Interceptor
 
-`axiosClient.js` adds:
+`axiosClient.js` cấu hình:
 
-| Interceptor | Behavior |
+| Interceptor | Hành vi |
 | --- | --- |
-| Request `Authorization` | Reads token from `useUserStore` or the `pat_token` cookie. |
-| Request `Accept-Language` | Pulls from `useLocaleStore`. |
-| Request `X-Site-Id` | Added when a site is selected (`useSiteStore`). |
-| Response 401 | Logs out and redirects to `/login`. |
-| Response 403 | Toasts a permission error. |
-| Response 5xx | Logs to Sentry, shows a generic toast. |
+| Request `Authorization` | Lấy token từ `useUserStore` hoặc cookie `pat_token`. |
+| Request `Accept-Language` | Lấy từ `useLocaleStore`. |
+| Request `X-Site-Id` | Thêm khi đã chọn site (`useSiteStore`). |
+| Response 401 | Đăng xuất và điều hướng `/login`. |
+| Response 403 | Hiển thị toast lỗi phân quyền. |
+| Response 5xx | Báo về Sentry, hiển thị toast chung. |
 
-To bypass auth (rare — public endpoints), pass `{ headers: { 'X-Skip-Auth': true } }` and handle it in the interceptor.
+Để bỏ qua xác thực (hiếm — endpoint public), truyền `{ headers: { 'X-Skip-Auth': true } }` rồi xử lý trong interceptor.
 
-## URLs
+## URL
 
-- Default base: `import.meta.env.VITE_BUILDERX_API_URL`.
-- Calls to `landing_page_backend` use modules under `src/api/landing/` with a different base (`VITE_LANDING_PAGE_API_URL`).
-- Cookie-bound internal endpoints are proxied through `server.js` with a `/internal/` prefix.
+- Base mặc định: `import.meta.env.VITE_BUILDERX_API_URL`.
+- Gọi sang `landing_page_backend` dùng module trong `src/api/landing/` với base riêng `VITE_LANDING_PAGE_API_URL`.
+- Endpoint nội bộ ràng buộc cookie đi qua `server.js` với prefix `/internal/`.
 
-## Deduplication & cancellation
+## Gộp và huỷ request
 
-- `inFlightPool` shares the same `GET` Promise across simultaneous callers.
-- For volatile screens, cancel previous requests:
+- `inFlightPool` chia sẻ chung Promise cho các `GET` đang chờ.
+- Trên màn hình biến động, huỷ request cũ:
 
   ```js
   const controller = new AbortController();
@@ -101,14 +101,14 @@ To bypass auth (rare — public endpoints), pass `{ headers: { 'X-Skip-Auth': tr
   controller.abort();
   ```
 
-## Mocking / testing
+## Mock cho test
 
-- Override `axiosClient.defaults.baseURL` (via env) for local proxies.
-- Hard mocks may live in `src/api/__mocks__/` (not formal yet; align with the team before introducing).
+- Có thể override `axiosClient.defaults.baseURL` qua biến môi trường để trỏ tới proxy local.
+- Mock cứng có thể đặt trong `src/api/__mocks__/` (chưa chính thức — bàn với team trước khi áp dụng).
 
-## Pitfalls
+## Sai sót thường gặp
 
-- Forgetting `await` inside a Pinia action causes state to set before data arrives.
-- Server responses shaped as `{ data, paging }` should pass through untouched — let stores reshape.
-- Do not set `Content-Type` manually when uploading `FormData`; axios sets the boundary for you.
-- Never `console.log` tokens (ESLint warns).
+- Quên `await` khi gọi method API trong action Pinia — state có thể được gán trước khi dữ liệu về.
+- Response trả `{ data, paging }` nên giữ nguyên cho store reshape, không reshape trong module API.
+- Không tự đặt `Content-Type` khi upload `FormData` — axios tự sinh boundary.
+- Không log token ra console (ESLint đã có cảnh báo).

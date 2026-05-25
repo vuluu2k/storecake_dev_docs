@@ -1,106 +1,106 @@
 ---
 sidebar_position: 8
-title: Cronjobs
+title: Cronjob
 ---
 
-# Cronjobs
+# Cronjob
 
-`builderx_api` uses **Quantum** (`:quantum`) as its scheduler. This page covers where jobs live, our conventions, and how to test locally.
+`builderx_api` dùng **Quantum** (`:quantum`) làm scheduler. Tài liệu này mô tả vị trí code, quy ước và cách kiểm thử ở local.
 
-## Where
+## Vị trí
 
-- `lib/cronjob/` — Wrapper + helpers.
-- `lib/builderx_api/business_cronjobs/` — Business logic per domain (e.g. recompute subscription, sync catalog).
-- `lib/builderx_api_web/schedule.ex` — Quantum entry: declare jobs + cron expressions.
+- `lib/cronjob/` — Wrapper + helper.
+- `lib/builderx_api/business_cronjobs/` — Logic business theo domain (ví dụ tính lại subscription, sync catalog).
+- `lib/builderx_api_web/schedule.ex` — Khai báo job + cron expression cho Quantum.
 
-## Quantum config
+## Cấu hình Quantum
 
-Jobs are declared in `schedule.ex` (or via `:builderx_api, BuilderxApi.Scheduler` config). Each job sets:
+Job được khai báo trong `schedule.ex` (hoặc qua config `:builderx_api, BuilderxApi.Scheduler`). Mỗi job có:
 
 ```elixir
 job :reindex_products do
-  schedule "*/30 * * * *"             # every 30 minutes
+  schedule "*/30 * * * *"             # 30 phút một lần
   task &BusinessCronjobs.Products.reindex_changed/0
   run_strategy {Quantum.RunStrategy.Local, [node()]}
-  overlap false                        # don't run on top of itself
+  overlap false                        # không chạy đè
 end
 ```
 
-> Use `overlap false` for long-running jobs to avoid pile-ups. Idempotent jobs may skip it.
+> Đặt `overlap false` cho job dài để tránh job chồng chéo. Job idempotent có thể bỏ qua.
 
-## Conventions
+## Quy ước
 
-- Job modules live under `BuilderxApi.BusinessCronjobs.<Domain>`.
-- `run/0` (or `run/1`) executes one round.
-- Log start / end / duration with `Logger.info`.
-- Long jobs (over 5 minutes) should batch + commit in chunks (small transactions).
-- Catch errors, send to Sentry via `ErrorTracker.capture/2`, then re-raise so Quantum marks the job failed.
+- Module job đặt dưới `BuilderxApi.BusinessCronjobs.<Domain>`.
+- Hàm `run/0` (hoặc `run/1`) thực thi một lần chạy.
+- Log thời điểm bắt đầu / kết thúc / thời lượng bằng `Logger.info`.
+- Job dài (trên 5 phút) nên chia batch và commit từng phần (transaction nhỏ).
+- Catch lỗi, gửi Sentry qua `ErrorTracker.capture/2`, sau đó **re-raise** để Quantum đánh dấu job thất bại.
 
-## Notable jobs
+## Một số job tiêu biểu
 
-| Job | Purpose |
+| Job | Mục đích |
 | --- | --- |
-| `reindex_products` | Push recently-changed products into Elastic. |
-| `expire_subscriptions` | Mark expired subscriptions, send emails. |
-| `sync_google_merchant` | Push Google Merchant feeds. |
-| `cleanup_short_links` | Purge expired short links. |
-| `recompute_customer_levels` | Recompute loyalty tiers. |
-| `recheck_domain_ssl` | Reverify custom-domain SSL. |
+| `reindex_products` | Đẩy sản phẩm thay đổi gần đây vào Elasticsearch. |
+| `expire_subscriptions` | Đánh dấu subscription hết hạn, gửi email. |
+| `sync_google_merchant` | Đẩy feed Google Merchant theo lịch. |
+| `cleanup_short_links` | Xoá short link hết hạn. |
+| `recompute_customer_levels` | Tính lại hạng khách hàng. |
+| `recheck_domain_ssl` | Kiểm tra lại SSL cho domain tuỳ chỉnh. |
 
-> The authoritative list lives in `schedule.ex`. Update the table above when you add a job.
+> Danh sách chuẩn nằm trong `schedule.ex`. Khi thêm job mới, cập nhật bảng trên.
 
-## Local testing
+## Chạy thử ở local
 
-- Enter IEx (`make bash` → `iex -S mix phx.server`).
-- Trigger manually:
+- Vào IEx (`make bash` → `iex -S mix phx.server`).
+- Gọi thủ công:
 
   ```elixir
   BuilderxApi.BusinessCronjobs.Products.reindex_changed()
   ```
 
-- Inspect Quantum registration:
+- Kiểm tra Quantum đã đăng ký:
 
   ```elixir
   Quantum.Job.all(BuilderxApi.Scheduler)
   ```
 
-- Pause / resume:
+- Tạm dừng / kích hoạt lại:
 
   ```elixir
   BuilderxApi.Scheduler.deactivate_job(:reindex_products)
   BuilderxApi.Scheduler.activate_job(:reindex_products)
   ```
 
-## Multi-node behavior
+## Hành vi khi chạy nhiều node
 
-- Quantum runs jobs on **every node** by default unless `run_strategy` says otherwise.
-- For jobs with heavy writes, pin to a single node:
+- Quantum mặc định chạy job trên **mọi node** trừ khi `run_strategy` chỉ định cụ thể.
+- Với job ghi DB nặng, ép chạy trên một node duy nhất:
 
   ```elixir
   run_strategy {Quantum.RunStrategy.Random, [:"app@worker-1"]}
   ```
 
-  …or use the distributed lock (`BuilderxApi.Redlock`).
+  Hoặc dùng distributed lock (`BuilderxApi.Redlock`).
 
-## Timezone
+## Múi giờ
 
-- Cron expressions follow the timezone in `config.exs`:
+- Cron expression theo timezone trong `config.exs`:
 
   ```elixir
   config :builderx_api, BuilderxApi.Scheduler,
     timezone: "Asia/Ho_Chi_Minh"
   ```
 
-- Avoid writing UTC expressions when the business logic runs in VN time.
+- Tránh viết cron theo UTC khi business chạy theo giờ Việt Nam.
 
-## Monitoring
+## Theo dõi
 
-- Sentry captures exceptions raised inside jobs.
-- Logger metadata: filter by `cronjob:<name>`.
-- Phoenix LiveDashboard exposes a Quantum tab (when enabled).
+- Sentry bắt exception trong job.
+- Logger metadata: lọc theo `cronjob:<name>`.
+- Phoenix LiveDashboard có tab Quantum (khi bật).
 
-## When *not* to use Quantum
+## Khi nào *không* dùng Quantum
 
-- Event-driven work → Outbox + Rabbit consumer.
-- One-shot tasks → `mix run scripts/<name>.exs`.
-- Long-running streams → GenServer that self-schedules with `Process.send_after/3`.
+- Job theo trigger (event-driven) → Outbox + Rabbit consumer.
+- Task chạy một lần → `mix run scripts/<name>.exs`.
+- Stream chạy dài → GenServer tự lên lịch bằng `Process.send_after/3`.

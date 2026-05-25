@@ -1,52 +1,52 @@
 ---
 sidebar_position: 6
-title: Database
+title: Cơ sở dữ liệu
 ---
 
-# Database
+# Cơ sở dữ liệu
 
-`builderx_api` uses several storage systems together. This page focuses on PostgreSQL + Citus (primary store) with quick notes on Mongo / Redis / Elastic / QuestDB.
+`builderx_api` dùng nhiều hệ lưu trữ song song. Tài liệu này tập trung vào PostgreSQL + Citus (kho dữ liệu chính), kèm ghi chú nhanh cho Mongo / Redis / Elastic / QuestDB.
 
-## Storage stack
+## Các hệ lưu trữ
 
-| System | Role | Elixir module |
+| Hệ | Vai trò | Module Elixir |
 | --- | --- | --- |
-| Postgres | Global tables (account, plan, geo, system) | `BuilderxApi.Repo` |
-| Citus | Tables sharded by `site_id` (product, order, …) | `BuilderxApi.Citus` |
-| Mongo | Dynamic-shape documents (form data, large logs) | `lib/db_collections/` + `:mongodb_driver` |
+| Postgres | Bảng global (account, plan, geo, system) | `BuilderxApi.Repo` |
+| Citus | Bảng shard theo `site_id` (sản phẩm, đơn hàng,…) | `BuilderxApi.Citus` |
+| Mongo | Document có cấu trúc động (form data, log lớn) | `lib/db_collections/` + `:mongodb_driver` |
 | Redis | Cache, lock, pubsub | `lib/redis/`, `:redix` |
-| Elastic | Full-text and filtering | `lib/search/`, `:erlastic_search` |
-| QuestDB | Time-series (metrics, conversion) | `lib/questdb/` |
-| S3 | Assets, CMS files | `:ex_aws_s3` |
+| Elastic | Full-text + filter | `lib/search/`, `:erlastic_search` |
+| QuestDB | Time-series (metric, conversion) | `lib/questdb/` |
+| S3 | Tài nguyên, file CMS | `:ex_aws_s3` |
 
-## Two Ecto repos
+## Hai repo Ecto
 
-- `BuilderxApi.Repo` — vanilla Postgres for non-sharded data.
-- `BuilderxApi.Citus` — Postgres + Citus extension for shard-by-`site_id` data.
+- `BuilderxApi.Repo` — Postgres thường, cho bảng không cần shard.
+- `BuilderxApi.Citus` — Postgres + extension Citus, cho bảng shard theo `site_id`.
 
-Use `-r` to target a repo:
+Truyền `-r` để chọn repo:
 
 ```bash
 mix ecto.migrate -r BuilderxApi.Repo
 mix ecto.migrate -r BuilderxApi.Citus
 
-# Inside the container:
-make migrate    # already targets Citus
+# Trong container
+make migrate    # đã trỏ Citus
 ```
 
-> Place new migrations in the folder that matches the target repo to keep them straight.
+> Đặt migration mới vào thư mục tương ứng với repo đích để tránh nhầm lẫn.
 
-## Citus — sharding by `site_id`
+## Citus — shard theo `site_id`
 
-- Sharded tables include a `site_id` UUID as the distribution column.
-- Indexes on `(site_id, ...)` make per-tenant queries fast — avoid cross-shard joins.
-- New shard table:
+- Bảng shard có cột `site_id` (UUID) làm distribution column.
+- Index theo `(site_id, ...)` cho truy vấn nhanh trong cùng shard — tránh join cross-shard.
+- Tạo bảng shard mới:
 
   ```elixir
   create table(:my_table, primary_key: false) do
     add :id, :uuid, primary_key: true
     add :site_id, :uuid, null: false
-    # other columns
+    # các cột khác
     timestamps()
   end
 
@@ -54,86 +54,86 @@ make migrate    # already targets Citus
   execute "SELECT create_distributed_table('my_table', 'site_id')"
   ```
 
-- Co-locate with an existing table (e.g. `products`) by passing `colocate_with => 'products'` to `create_distributed_table`.
+- Co-locate với bảng có sẵn (ví dụ `products`) bằng cách truyền `colocate_with => 'products'` cho `create_distributed_table`.
 
-## Migrations
+## Migration
 
 ```text
-priv/repo/migrations/             # Repo migrations
-priv/repo/citus_migrations/       # Citus migrations (when separated)
-priv/repo/seeds.exs               # Seeds
+priv/repo/migrations/             # Migration cho Repo
+priv/repo/citus_migrations/       # Migration cho Citus (khi tách)
+priv/repo/seeds.exs               # Seed
 ```
 
-Aliases in `mix.exs`:
+Alias trong `mix.exs`:
 
 ```elixir
 "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
 "ecto.reset": ["ecto.drop", "ecto.setup"]
 ```
 
-Usage:
+Sử dụng:
 
 ```bash
 mix ecto.setup
 mix ecto.reset
 ```
 
-## Connection pool
+## Pool kết nối
 
-- Pool size defaults to 30+ (per env in `config/dev.exs`, `prod.exs`).
-- For long-running queries, prefer `Repo.transaction(fn -> ... end, timeout: :infinity)` over raising pool size.
+- Pool mặc định 30+ (mỗi env trong `config/dev.exs`, `prod.exs`).
+- Với truy vấn chạy dài, ưu tiên `Repo.transaction(fn -> ... end, timeout: :infinity)` thay vì tăng pool size.
 
 ## MongoDB
 
-- Schemas in `lib/db_collections/`.
+- Schema trong `lib/db_collections/`.
 - API: `Mongo.find/3`, `Mongo.insert_one/3`, `Mongo.delete_many/3`.
-- Use cases:
-  - Large `form_data` (leads, dynamic fields).
-  - Import / scrape logs.
-- Indices defined in scripts under `mongo/`.
+- Trường hợp dùng:
+  - `form_data` cỡ lớn (lead, trường động).
+  - Log import / scrape.
+- Index quan trọng được định nghĩa trong script ở `mongo/`.
 
 ## Redis
 
-- `lib/redis/` provides `Redis.get/1`, `Redis.set/3`, `Redis.del/1`, `Redis.publish/2`.
-- `lib/redlock.ex` — distributed lock across nodes.
-- Key convention: `<prefix>:<entity>:<id>` (e.g. `storecake:product:<uuid>:detail`).
-- Cache TTL must be explicit (`expire_seconds`); pass `force: true` carefully to bypass cache.
+- `lib/redis/` cung cấp `Redis.get/1`, `Redis.set/3`, `Redis.del/1`, `Redis.publish/2`.
+- `lib/redlock.ex` — distributed lock giữa nhiều node.
+- Quy ước key: `<prefix>:<entity>:<id>` (ví dụ `storecake:product:<uuid>:detail`).
+- TTL cache phải truyền rõ (`expire_seconds`); chỉ bypass cache (`force: true`) khi thực sự cần.
 
-## ElasticSearch
+## Elasticsearch
 
-- Index per entity (`products`, `orders`, `customers`, `pages`,…).
-- Mapping lives in `<domain>/elastic.ex`.
-- Reindex runs through `Rabbit.IndexingConsumer` (see [Run book](./run.md)).
-- For full rebuilds, call `Elastic.re_setup_product_index/0` from IEx.
+- Mỗi entity có index riêng (`products`, `orders`, `customers`, `pages`,…).
+- Mapping định nghĩa trong `<domain>/elastic.ex`.
+- Reindex chạy qua `Rabbit.IndexingConsumer` (xem [Runbook](./run.md)).
+- Để dựng lại toàn bộ, gọi `Elastic.re_setup_product_index/0` trong IEx.
 
 ## QuestDB
 
-- Real-time metrics (conversion, pixel, view).
-- Sender module in `lib/questdb/` (ILP / TCP).
-- Queries via HTTP `questdb_host/exec?query=...`.
+- Metric realtime (conversion, pixel, view).
+- Module sender ở `lib/questdb/` (ILP qua TCP).
+- Truy vấn qua HTTP `questdb_host/exec?query=...`.
 
 ## S3
 
-- Buckets configured via `S3_*` env vars.
-- `BuilderxApi.AwsS3` provides upload + presigned URLs.
-- Buckets are split into public (assets) and private (CMS, invoices).
+- Bucket cấu hình qua các biến `S3_*`.
+- `BuilderxApi.AwsS3` cung cấp upload + presigned URL.
+- Tách bucket public (asset) và private (CMS, hoá đơn).
 
-## Backup / DR
+## Sao lưu / phục hồi thảm hoạ
 
-- Postgres + Citus snapshots are taken daily (ops owns the schedule).
-- When you need prod-like data locally, **clone from staging**, never restore prod dumps.
-- Mongo backups via `mongodump` on the ops schedule.
+- Postgres + Citus snapshot hằng ngày (ops chịu trách nhiệm).
+- Khi cần dữ liệu giống prod ở máy local, **clone từ staging**, không restore dump prod.
+- Mongo backup theo lịch `mongodump` của ops.
 
-## Best practices
+## Best practice
 
-- Never `Repo.all/1` on a shard table without filtering by `site_id`.
-- For cross-shard joins, denormalize into Elastic instead of attempting Citus joins.
-- Long migrations should batch (`Ecto.Migration.flush/0` + `mix run scripts/...`).
-- Keep `Logger.debug` SQL off in prod (already off in `prod.exs`).
+- Tuyệt đối không `Repo.all/1` trên bảng shard mà không filter `site_id`.
+- Cần join cross-shard thì denormalize sang Elastic thay vì cố join trong Citus.
+- Migration dài nên chia batch (`Ecto.Migration.flush/0` + `mix run scripts/...`).
+- Không bật `Logger.debug` SQL ở prod (đã tắt trong `prod.exs`).
 
-## See also
+## Xem thêm
 
-- [Architecture](./architecture.md)
-- [Integrations](./integrations.md)
-- [Cronjobs](./cronjobs.md)
-- [Run book](./run.md)
+- [Kiến trúc](./architecture.md)
+- [Tích hợp](./integrations.md)
+- [Cronjob](./cronjobs.md)
+- [Runbook](./run.md)

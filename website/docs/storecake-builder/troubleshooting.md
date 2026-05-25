@@ -1,118 +1,118 @@
 ---
 sidebar_position: 14
-title: Troubleshooting
+title: Xử lý sự cố
 ---
 
-# Troubleshooting
+# Xử lý sự cố
 
-Common issues encountered when developing `builderx_spa`. Add new ones here so the next person can find the answer fast.
+Các vấn đề thường gặp khi phát triển `builderx_spa`. Khi gặp lỗi mới, ghi lại ngay vào đây để người sau tra cứu.
 
-## 1. `npm install` fails on `node-gyp`
+## 1. `npm install` lỗi `node-gyp`
 
-Symptom: install hangs at `node-gyp rebuild`, missing `python` or `make`.
+Triệu chứng: install treo ở `node-gyp rebuild`, log báo thiếu `python` hoặc `make`.
 
-Fix:
+Cách xử lý:
 
 - macOS: `xcode-select --install`.
 - Linux: `sudo apt install build-essential python3`.
-- Windows (WSL): install `build-essential` inside WSL, not cmd.
-- Use the right Node version (`nvm use 16`).
+- Windows (WSL): cài `build-essential` trong WSL chứ không phải cmd.
+- Dùng đúng Node 16 (`nvm use 16`).
 
-## 2. `tinymce/` missing after install
+## 2. Thư mục `tinymce/` không có sau khi install
 
-Symptom: console 404s on `/tinymce/skins/...`.
+Triệu chứng: console báo 404 ở `/tinymce/skins/...`.
 
 ```bash
 npm run postinstall
-# or manually
+# hoặc thao tác thủ công
 rm -rf tinymce
 cp -R node_modules/tinymce tinymce
 ```
 
-## 3. CORS error when calling `builderx_api`
+## 3. Lỗi CORS khi gọi `builderx_api`
 
-- Verify `VITE_BUILDERX_API_URL` matches scheme + port.
-- Make sure `builderx_api` whitelists the SPA origin via `corsica` (`config :builderx_api, :cors_origins`).
-- Cross-site cookies need `SameSite=None; Secure` — for local dev you can disable secure flags.
+- Kiểm tra `VITE_BUILDERX_API_URL` đúng scheme và cổng.
+- Đảm bảo `builderx_api` đã cấu hình `corsica` cho origin SPA (`config :builderx_api, :cors_origins`).
+- Cookie cross-site cần `SameSite=None; Secure`. Khi dev local có thể tắt `Secure`.
 
-## 4. Phoenix Channel won't connect
+## 4. Phoenix Channel không kết nối được
 
-- Network tab shows WS close code `1006`, or store doesn't receive events.
-- `builderx_api` is running and `/socket/websocket` is reachable.
-- The user's JWT is still valid (logout and re-login).
-- Browser blocks mixed content (HTTPS SPA → HTTP backend) — align the scheme.
+- Tab Network thấy WebSocket đóng với mã `1006`, hoặc store không nhận event.
+- Kiểm tra `builderx_api` đang chạy và endpoint `/socket/websocket` reachable.
+- Token JWT của user vẫn còn hạn (đăng xuất và đăng nhập lại để chắc).
+- Trình duyệt chặn mixed content (SPA HTTPS, backend HTTP) — đồng bộ scheme.
 
-## 5. Vite HMR not updating
+## 5. Vite HMR không cập nhật
 
-- Files must live under `src/` (Vite watches the project root only).
-- Avoid symlinked code paths; Vite can miss changes through symlinks.
-- Clear cache: `rm -rf node_modules/.vite`.
+- File thay đổi phải nằm trong `src/` (Vite chỉ watch project root).
+- Tránh đi đến code qua symlink; Vite có thể bỏ sót thay đổi.
+- Xoá cache: `rm -rf node_modules/.vite`.
 
-## 6. Husky hooks not firing
+## 6. Husky hook không chạy
 
 ```bash
 chmod +x .husky/pre-commit
 git config core.hooksPath .husky
 ```
 
-## 7. Lint is slow
+## 7. Lint chậm
 
-- Enable cache: `npm run lint -- --cache`.
-- Configure `eslint.workingDirectories` in VS Code so ESLint and lint-staged do not double-run.
+- Bật cache: `npm run lint -- --cache`.
+- Cấu hình `eslint.workingDirectories` trong VS Code để ESLint và lint-staged không chạy đè lên nhau.
 
-## 8. Out of memory while building
+## 8. Hết bộ nhớ khi build
 
 ```bash
 NODE_OPTIONS=--max_old_space_size=4096 npm run build:client
 ```
 
-Or raise Docker Desktop's RAM allowance when building inside a container.
+Hoặc tăng RAM cấp cho Docker Desktop khi build trong container.
 
-## 9. `Failed to fetch dynamically imported module` after deploy
+## 9. `Failed to fetch dynamically imported module` sau khi deploy
 
-Hashed chunks rotated but the client still has the old hash.
+Nguyên nhân: chunk JS đã đổi hash nhưng client cũ vẫn cache.
 
-- The router already auto-reloads when a chunk 404s — keep that error handler in `src/router/index.js`.
-- If it doesn't reload, flush CDN cache and set `Cache-Control: no-cache` on `index.html`.
+- Router đã có handler tự reload khi chunk 404 — giữ nguyên handler đó ở `src/router/index.js`.
+- Nếu vẫn không reload, flush cache CDN và đặt `Cache-Control: no-cache` cho `index.html`.
 
-## 10. Local subdomain not resolving
+## 10. Subdomain dev không phân giải
 
-- Add to `/etc/hosts`:
+- Thêm vào `/etc/hosts`:
 
   ```
   127.0.0.1 admin.localhost
   127.0.0.1 affiliate.localhost
   ```
 
-- macOS does not wildcard `*.localhost` — declare each subdomain or use `dnsmasq`.
+- macOS không match wildcard `*.localhost` — khai báo từng subdomain hoặc dùng `dnsmasq`.
 
-## 11. TinyMCE / Monaco assets missing
+## 11. TinyMCE / Monaco thiếu tài nguyên
 
-- `tinymce/` is still present after build.
-- Configure Monaco worker paths when bundling (`@guolao/vue-monaco-editor`).
-- Deployment pipelines must upload `tinymce/` alongside main assets.
+- `tinymce/` còn nguyên sau khi build.
+- Cấu hình đường dẫn worker khi bundle Monaco (`@guolao/vue-monaco-editor`).
+- Pipeline deploy phải upload `tinymce/` cùng với asset chính.
 
-## 12. Sentry not sending events
+## 12. Sentry không gửi event
 
-- `VITE_SENTRY_DSN` matches the project.
-- `import.meta.env.MODE !== 'development'` — Sentry is off in dev by default. Toggle the init flag if you need to test in dev.
-- Ad-blockers can drop Sentry calls; test in incognito with extensions off.
+- `VITE_SENTRY_DSN` khớp project.
+- `import.meta.env.MODE !== 'development'` — Sentry mặc định tắt ở dev. Đổi cờ init nếu muốn test ở dev.
+- Trình chặn quảng cáo có thể chặn Sentry; test ở Incognito và tắt extension.
 
-## 13. Editor V2 schema mismatch
+## 13. Editor V2 lỗi mismatch schema
 
-- Run `npm run validate:schemas` to see the exact mismatch.
-- If you added a trait, run `npm run build:schemas` to regenerate `schemas/elements.json`.
-- Verify the schema version still matches what `builderx_api` expects.
+- Chạy `npm run validate:schemas` để biết chính xác chỗ lệch.
+- Nếu thêm trait, chạy `npm run build:schemas` để sinh lại `schemas/elements.json`.
+- Đối chiếu phiên bản schema với `builderx_api`.
 
-## 14. Port already in use
+## 14. Cổng bị chiếm
 
-- Vite defaults to 5173, Express to 3000.
-- Change `server.port` in `vite.config.js` or `PORT` in `server.js`.
+- Vite mặc định 5173, Express 3000.
+- Đổi `server.port` trong `vite.config.js` hoặc `PORT` trong `server.js`.
 
-## 15. Quick debug helpers
+## 15. Helper debug nhanh
 
-- `localStorage.setItem('debug', 'storecake:*')` if a `debug` namespace is wired.
-- `window.__pinia.state.value` (dev only).
-- Use Vue DevTools to identify the selected component.
+- `localStorage.setItem('debug', 'storecake:*')` nếu code có dùng namespace `debug`.
+- `window.__pinia.state.value` (chỉ dev).
+- Dùng Vue DevTools để biết component đang được chọn.
 
-If you cannot resolve an issue: capture logs + reproduction steps and post in `#frontend-help` or tag the team lead.
+Khi không tự giải quyết được: đính kèm log và các bước reproduce, gửi trong kênh `#frontend-help` hoặc tag team lead.

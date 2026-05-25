@@ -1,44 +1,44 @@
 ---
 sidebar_position: 10
-title: Deployment
+title: Triển khai
 ---
 
-# Deployment
+# Triển khai
 
-`builderx_api` is deployed via **Ansible** with Elixir releases packaged as Docker images. Playbooks live in `ansible/`.
+`builderx_api` được triển khai bằng **Ansible** với Elixir release đóng gói trong image Docker. Playbook nằm ở `ansible/`.
 
-## Environments
+## Các môi trường
 
-| Env | Audience | Inventory |
+| Môi trường | Đối tượng | Inventory |
 | --- | --- | --- |
-| Local | Personal dev | `docker-compose.yml` |
+| Local | Dev cá nhân | `docker-compose.yml` |
 | Staging | QA team | `ansible/inventory.yaml` (group `store_staging_*`) |
-| Production | Customers | `ansible/inventory.yaml` (group `store_prod_*`) |
+| Production | Khách hàng | `ansible/inventory.yaml` (group `store_prod_*`) |
 
-## Build artifact
+## Artifact build
 
-- The `Dockerfile` is multi-stage:
-  1. Build `mix release` with `MIX_ENV=prod`.
-  2. Copy the release into a slim runtime image.
-- The in-repo `assets/` FE is built in the `:assets` stage (`npm ci && npm run deploy`) before Elixir compiles.
+- `Dockerfile` multi-stage:
+  1. Build `mix release` với `MIX_ENV=prod`.
+  2. Copy release sang image runtime gọn nhẹ.
+- FE nội bộ ở `assets/` được build trong stage `:assets` (`npm ci && npm run deploy`) trước khi Elixir compile.
 
-Local sanity check:
+Kiểm tra build local:
 
 ```bash
 make build
 ```
 
-## Deploy targets (Makefile)
+## Lệnh deploy (Makefile)
 
-| Target | Description |
+| Lệnh | Mô tả |
 | --- | --- |
-| `make deploy` | Backend + publish consumer. |
-| `make deploy-backend` | Backend only. |
-| `make deploy-worker` | Worker fleet (cron, consumers). |
-| `make deploy-publish-consumer` | Publish consumer (landing publish channel). |
-| `make deploy-staging` | Staging stack. |
+| `make deploy` | Deploy backend + publish consumer. |
+| `make deploy-backend` | Chỉ deploy backend. |
+| `make deploy-worker` | Deploy nhóm worker (cron, consumer). |
+| `make deploy-publish-consumer` | Deploy publish consumer (kênh publish landing). |
+| `make deploy-staging` | Deploy stack staging. |
 
-These all expand to:
+Mỗi lệnh map tới:
 
 ```bash
 ansible-playbook -i ansible/inventory.yaml ansible/<playbook>.yaml
@@ -46,79 +46,79 @@ ansible-playbook -i ansible/inventory.yaml ansible/<playbook>.yaml
 
 ## Hotfix
 
-When shipping a fast fix:
+Khi cần ship fix khẩn:
 
 ```bash
-# What will change
+# Kiểm tra những gì sẽ thay đổi
 make hotfix-status
 
-# Apply HEAD of current branch
+# Apply HEAD của branch hiện tại
 make hotfix-head
 
-# Staging equivalents
+# Cho staging
 make hotfix-staging-status
 make hotfix-staging-head
 ```
 
-> Hotfix playbooks assume the fix is already merged into `master` (prod) or `develop` (staging).
+> Playbook hotfix giả định fix đã được merge vào `master` (prod) hoặc `develop` (staging).
 
-## Migrations on deploy
+## Migration khi deploy
 
-- After the release lands on the server, run:
+- Sau khi release lên server, chạy migration:
 
   ```bash
   make migrate
-  # which runs: docker compose exec builderx_api mix ecto.migrate -r BuilderxApi.Citus
+  # tương đương: docker compose exec builderx_api mix ecto.migrate -r BuilderxApi.Citus
   ```
 
-- The non-Citus Repo also needs migrating:
+- Repo Postgres thường cũng cần migrate:
 
   ```bash
   docker compose exec builderx_api mix ecto.migrate -r BuilderxApi.Repo
   ```
 
-- Schema migrations against large prod tables go out of peak hours and ops gets a heads-up.
+- Migration schema chạy trên bảng lớn của prod nên thực hiện ngoài giờ cao điểm và thông báo ops trước.
 
 ## Restart / Reload
 
-- Elixir releases support hot-reload via RPC, but most deploys restart the container (`docker compose restart builderx_api`).
-- Worker / consumer services should restart one node at a time to avoid pausing indexing.
+- Elixir release hỗ trợ hot reload qua RPC, nhưng team thường `docker compose restart builderx_api` cho an toàn.
+- Service worker / consumer nên restart từng node để không gián đoạn indexing.
 
-## Post-deploy smoke test
+## Smoke test sau deploy
 
-- `GET /healthz` returns 200.
-- Sign in on staging `builderx_spa`.
-- Place a test order and watch the event hit `Rabbit.IndexingConsumer`.
-- Sentry stays quiet for the next 10 minutes.
+- `GET /healthz` trả 200.
+- Đăng nhập trên staging `builderx_spa`.
+- Tạo đơn test, kiểm tra event chạy qua `Rabbit.IndexingConsumer`.
+- Sentry không nổi spike error trong 10 phút.
 
 ## Rollback
 
-- CI keeps the previous image under `:previous`.
-- Steps:
-  1. SSH to the server.
-  2. Re-tag the image to `:previous`.
+- CI giữ image trước với tag `:previous`.
+- Các bước:
+  1. SSH vào server.
+  2. Đổi tag image về `:previous`.
   3. `docker compose up -d builderx_api`.
-  4. Re-run the smoke test.
-- Reverting migrations is risky — typically we ship a corrective migration instead of running `ecto.rollback` in prod.
+  4. Chạy lại smoke test.
+- Hoàn tác migration có rủi ro — thường ship migration sửa lỗi thay vì `ecto.rollback` trên prod.
 
 ## CI/CD pipeline
 
-1. Push branch → CI runs `mix test` + lint.
-2. Merge `develop` → CI builds a staging image and runs `make deploy-staging` (if enabled).
-3. Merge `master` → CI builds prod image and tags it.
-4. An operator runs `make deploy` (manual gate).
-5. Sentry and Grafana watched for an hour.
+1. Push branch → CI chạy `mix test` + lint.
+2. Merge `develop` → CI build image staging và chạy `make deploy-staging` (nếu enable).
+3. Merge `master` → CI build image prod và đánh tag.
+4. Operator chạy `make deploy` (manual gate).
+5. Theo dõi Sentry và Grafana trong một giờ.
 
-## Operational monitoring
+## Monitoring khi vận hành
 
 - **Sentry** — project `builderx-api`.
-- **Grafana / Prometheus** — host + Postgres + Rabbit metrics.
-- **Phoenix LiveDashboard** — `/dashboard` (super-admin only).
-- **Logs** — aggregated via ELK / Loki (per env).
+- **Grafana / Prometheus** — metric host + Postgres + Rabbit.
+- **Phoenix LiveDashboard** — `/dashboard`, chỉ super-admin.
+- **Log** — gom qua ELK / Loki tuỳ env.
 
-## Best practices
+## Best practice
 
-- **Never** edit prod DB directly. Run data changes through a context module (mix task or IEx RPC).
-- For hotfix data work, write a `mix run priv/scripts/<name>.exs`, review it, run with a lock.
-- Before `make deploy`: ensure `master` is the commit you want and `git pull` is current.
-- Don't run two deploys concurrently against the same cluster.
+- **Không** sửa DB prod trực tiếp. Mọi thay đổi data phải đi qua module context (mix task hoặc IEx RPC).
+- Hot-fix data: viết script `mix run priv/scripts/<name>.exs`, qua code review, chạy có lock.
+- Trước khi `make deploy`: đảm bảo `master` là commit muốn deploy và đã `git pull`.
+- Không chạy hai lệnh deploy song song trên cùng cluster.

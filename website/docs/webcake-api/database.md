@@ -1,117 +1,117 @@
 ---
 sidebar_position: 6
-title: Database & Replica
+title: Cơ sở dữ liệu và Replica
 ---
 
-# Database & Replica
+# Cơ sở dữ liệu và Replica
 
-`landing_page_backend` runs Postgres as the primary store with a **logical replication** setup for analytics offload.
+`landing_page_backend` dùng Postgres làm kho chính, kèm logical replication sang Postgres replica để giảm tải cho các workload analytic.
 
 ## Repos
 
-- `LandingPage.Repo` — Primary Postgres repo.
-- `LandingPage.ReplicaRepo` — Optional read replica registered in `application.ex` when needed.
+- `LandingPage.Repo` — Repo Postgres chính.
+- `LandingPage.ReplicaRepo` — Read replica, đăng ký trong `application.ex` khi bật.
 
-## Migrations
+## Migration
 
-Migrations live in `priv/repo/migrations/`. Commands:
+Migration ở `priv/repo/migrations/`. Lệnh:
 
 ```bash
-# Inside the container
+# Trong container
 docker compose exec landing-page mix ecto.migrate
-# Or
+# Hoặc
 make migrate
 ```
 
-Mix aliases:
+Alias trong `mix.exs`:
 
 ```elixir
 "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
 "ecto.reset": ["ecto.drop", "ecto.setup"]
 ```
 
-> Unlike `builderx_api`, this repo does **not** use Citus. Large tables (form_data, analytics) rely on good indexes + partitioning + replica offload.
+> Khác với `builderx_api`, repo này **không** dùng Citus. Bảng lớn (form_data, analytics) phụ thuộc index tốt + partition + offload sang replica.
 
-## Logical replication setup
+## Logical replication
 
-The `replica/` folder bundles scripts; the Makefile drives them:
+Thư mục `replica/` chứa script; Makefile dẫn động:
 
-| Target | What it does |
+| Target | Tác dụng |
 | --- | --- |
-| `make upgrade-data` | Runs `replica/pg_upgrade.sh` to upgrade Postgres data. |
-| `make update-primary-config` | Tweaks `postgresql.conf` on the primary (`wal_level`, `max_wal_senders`,…). |
-| `make init-primary` | Creates the publication on the primary (`init_pub.sh`). |
-| `make init-data-repica` | Initial data copy to the replica (`init_data_replica.sh`). |
-| `make init-replica` | Creates the subscription on the replica (`init_sub.sh`). |
-| `make add-table-replica` | Add a table: `make add-table-replica table=form_data`. |
-| `make migrate-all` | Run the full replication flow step by step. |
+| `make upgrade-data` | Chạy `replica/pg_upgrade.sh` để nâng version data. |
+| `make update-primary-config` | Cập nhật `postgresql.conf` của primary (`wal_level`, `max_wal_senders`,…). |
+| `make init-primary` | Tạo publication trên primary (`init_pub.sh`). |
+| `make init-data-repica` | Sync data lần đầu sang replica (`init_data_replica.sh`). |
+| `make init-replica` | Tạo subscription trên replica (`init_sub.sh`). |
+| `make add-table-replica` | Thêm bảng: `make add-table-replica table=form_data`. |
+| `make migrate-all` | Chạy toàn bộ luồng replication theo từng bước. |
 
-> Backup before `migrate-all` on a real environment — `pg_upgrade` rewrites the data directory.
+> Sao lưu trước khi `migrate-all` trên môi trường thật — `pg_upgrade` ghi đè data directory.
 
-## Seeding
+## Seed dữ liệu
 
-`priv/repo/seeds.exs` inserts baseline data (geo, default templates, sample organization). Run with:
+`priv/repo/seeds.exs` insert dữ liệu nền (geo, template mặc định, tổ chức mẫu). Chạy:
 
 ```bash
 docker compose exec landing-page mix run priv/repo/seeds.exs
 ```
 
-`country_data.json` at the repo root feeds the country import flow.
+`country_data.json` ở thư mục gốc phục vụ luồng import quốc gia.
 
 ## Redis
 
-- Modules: `lib/redis.ex`, `lib/redis_pubsub.ex`, `lib/redlock.ex`.
-- Use cases:
-  - Page-render cache (`page:<id>:render`).
-  - Real-time pub/sub (`landing:<account>:event`).
-  - Distributed locks during publish.
+- Module: `lib/redis.ex`, `lib/redis_pubsub.ex`, `lib/redlock.ex`.
+- Trường hợp dùng:
+  - Cache render trang (`page:<id>:render`).
+  - Pub/sub realtime (`landing:<account>:event`).
+  - Distributed lock khi publish.
 
 ## Kafka
 
 - Module: `lib/event_streaming/`.
-- Main topics: analytics, conversion, lead events.
-- Producer + consumer under a supervisor; consumer groups named per service (`webcake.analytics`).
+- Topic chính: analytics, conversion, lead event.
+- Producer + consumer chạy trong supervisor; consumer group đặt theo service (`webcake.analytics`).
 
 ## RabbitMQ
 
 - Module: `lib/rabbit/` (`:gen_rmq`).
-- Used to integrate partners and synchronize with `builderx_api` (via webcms).
+- Dùng cho tích hợp đối tác và đồng bộ với `builderx_api` (qua webcms).
 
-## ElasticSearch
+## Elasticsearch
 
-- `lib/elastic.ex`, `lib/elastic_index.ex` configure indexes for pages + form data.
-- Manual reindex (IEx): `LandingPage.ElasticIndex.reindex_pages/0`.
+- `lib/elastic.ex`, `lib/elastic_index.ex` cấu hình index cho page và form data.
+- Reindex thủ công qua IEx (`LandingPage.ElasticIndex.reindex_pages/0`).
 
 ## S3
 
-- Asset / CMS file buckets.
-- Env: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, region.
+- Bucket asset / file CMS.
+- Biến môi trường: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, region.
 
 ## QuestDB
 
-- `lib/questdb/` pushes real-time metrics (pixel view, click).
+- `lib/questdb/` đẩy metric realtime (lượt xem pixel, click).
 
-## Backup / DR
+## Sao lưu / phục hồi thảm hoạ
 
-- Daily backup of the primary.
-- The replica is for analytics — do **not** treat it as a backup.
-- Mongo (if used) is dumped via `mongodump` on the ops schedule.
+- Backup primary hằng ngày.
+- Replica chỉ dành cho analytic — **không** xem replica là bản backup.
+- Mongo (nếu dùng) dump qua `mongodump` theo lịch ops.
 
-## Migration guidelines
+## Quy ước migration
 
-- Avoid schema changes on huge tables (form_data, analytics) during peak hours.
-- Adding a column to a large table: `add_column ... null: true`, no default, then backfill via a job.
-- Migrations need a sane `down/0` if reversible; otherwise `raise/0` clearly.
+- Tránh đổi schema trên bảng lớn (form_data, analytics) trong giờ cao điểm.
+- Thêm cột vào bảng lớn: `add_column ... null: true`, không default ngay, sau đó backfill bằng job.
+- Migration cần có `down/0` hợp lý nếu có thể đảo ngược; nếu không, `raise/0` rõ ràng.
 
-## Pitfalls
+## Lưu ý
 
-- Replication can lag on bulk DDL — schedule outside peak.
-- Wide JSONB columns: use GIN indices, not full-text.
-- When renaming a published table: drop from the publication, rename, re-add via `make add-table-replica`.
+- Replication có thể bị lag khi DDL nặng — sắp lịch ngoài giờ cao điểm.
+- Cột JSONB rộng: dùng index GIN, không full-text.
+- Khi rename bảng đang được publish: drop khỏi publication, rename, sau đó add lại qua `make add-table-replica`.
 
-## See also
+## Xem thêm
 
-- [Architecture](./architecture.md)
-- [Workers & Queue](./workers.md)
-- [Integrations](./integrations.md)
-- [Environment](./environment.md)
+- [Kiến trúc](./architecture.md)
+- [Worker và Queue](./workers.md)
+- [Tích hợp](./integrations.md)
+- [Biến môi trường](./environment.md)

@@ -1,165 +1,165 @@
 ---
 sidebar_position: 3
-title: Project structure
+title: Cấu trúc dự án
 ---
 
-# Project structure
+# Cấu trúc dự án
 
-Directory map of `builderx_spa`. All paths are relative to the repository root.
+Bản đồ thư mục của `builderx_spa`. Mọi đường dẫn tính tương đối từ thư mục gốc của repo.
 
-## Repository root
+## Thư mục gốc
 
 ```text
 builderx_spa/
-├── server.js                 # Express SSR/proxy entry
-├── index.html                # SPA entry (admin)
-├── index_themes.html         # SPA entry (storefront/theme preview)
+├── server.js                 # Express SSR/proxy
+├── index.html                # Entry SPA cho admin
+├── index_themes.html         # Entry SPA cho storefront/theme preview
 ├── vite.config.js
 ├── tailwind.config.cjs
 ├── postcss.config.cjs
-├── package.json              # dev / lint / build / validate scripts
-├── jsconfig.json             # IDE path alias
+├── package.json              # Script dev / lint / build / validate
+├── jsconfig.json             # Alias path cho IDE
 ├── .eslintrc.cjs
 ├── .prettierrc.json
-├── .husky/                   # Git hook (pre-commit lint-staged)
-├── .vscode/                  # Recommended settings + tailwind.json
-├── ansible/                  # Deploy playbooks
-├── backend/                  # Helper endpoints outside Vite (oauth, token,…)
-├── cert/                     # Local SSL (mkcert)
-├── dist/                     # Build output (gitignored)
-├── docs/                     # Internal docs (this site syncs from here)
-├── mcp/                      # MCP config for AI dev tooling
-├── public/                   # Static assets
-├── schemas/                  # Editor V2 trait schemas
-│   ├── elements/             # Per-element schemas
-│   ├── elements.json         # Aggregate registry
+├── .husky/                   # Git hook pre-commit (lint-staged)
+├── .vscode/                  # Settings khuyến nghị + tailwind.json
+├── ansible/                  # Playbook deploy
+├── backend/                  # Endpoint phụ trợ ngoài Vite (oauth, token,…)
+├── cert/                     # Chứng chỉ SSL local (mkcert)
+├── dist/                     # Output build (gitignored)
+├── docs/                     # Tài liệu nội bộ (site này đồng bộ từ đây)
+├── mcp/                      # Cấu hình MCP cho công cụ AI dev
+├── public/                   # Tài nguyên tĩnh
+├── schemas/                  # Trait schema cho Editor V2
+│   ├── elements/             # Schema cho từng element
+│   ├── elements.json         # Registry tổng hợp
 │   └── trait-definitions.json
 ├── scripts/
 │   ├── build-trait-schemas.mjs
 │   └── validate-trait-schemas.mjs
-├── src/                      # Source Vue 3
-└── tinymce/                  # Copy from node_modules (postinstall)
+├── src/                      # Mã nguồn Vue 3
+└── tinymce/                  # Copy từ node_modules (postinstall)
 ```
 
-## `src/`
+## Thư mục `src/`
 
 ```text
 src/
-├── main.js               # Bootstrap (createApp + plugins + router + pinia)
-├── App.vue               # Root
-├── api/                  # axios + per-feature API modules
+├── main.js               # Bootstrap (createApp + plugin + router + pinia)
+├── App.vue               # Component gốc
+├── api/                  # axios + module API theo feature
 ├── assets/
 ├── common/
 ├── components/
 ├── composable/
-├── i18n/                 # vue-i18n + locales/*.json
+├── i18n/                 # vue-i18n + tệp locale
 ├── lib/
-├── measure/              # Performance marks
-├── plugins/              # Vue plugins (sentry, antd, i18n, gtm,…)
-├── router/               # Routes + guards
+├── measure/              # Đo hiệu năng
+├── plugins/              # Plugin Vue (sentry, antd, i18n, gtm,…)
+├── router/               # Route + guard
 ├── statics/
-├── stores/               # Pinia stores
-├── style/                # Shared SCSS
+├── stores/               # Pinia store
+├── style/                # SCSS dùng chung
 ├── utils/
-└── views/                # Page-level components
+└── views/                # Component cấp trang
 ```
 
-## `src/views/` map by feature
+## `src/views/` theo nhóm tính năng
 
-| Path | Feature |
+| Đường dẫn | Tính năng |
 | --- | --- |
-| `Dashboard.vue` | Main admin dashboard |
-| `Sites.vue` / `site/` | Multi-site management |
+| `Dashboard.vue` | Trang chính của admin |
+| `Sites.vue` / `site/` | Quản lý nhiều site |
 | `Editor.vue` | Editor V1 |
-| `EditorV2.vue` | Editor V2 (current) |
-| `products/`, `Products.vue` | Products |
-| `categories/` | Categories |
-| `orders/` | Orders |
-| `customers/`, `Customers.vue` | Customers |
-| `discounts/`, `Discounts.vue` | Promotions |
-| `payments/` | Payment methods |
-| `analytic/`, `Analytics.vue` | Reports |
-| `system_logs/`, `SystemLogs.vue` | Audit log |
-| `blog/` | Blog |
-| `app_store/`, `applications/` | App marketplace |
-| `automations/` | Automation flows |
-| `appointments/` | Bookings |
-| `combo_products/`, `commissions/`, `affiliates/`, `user_affiliates/` | Advanced sales |
-| `landing/`, `home_page/`, `Homepage.vue`, `store_home/` | Storefront UI |
-| `sale_channels/`, `markets/`, `multilingual/`, `domains/`, `domain_and_seo/` | Distribution / SEO |
-| `integrations/`, `partner_services/`, `services/`, `webcake/` | External integrations |
-| `settings/` | Settings |
-| `History.vue` | Activity log |
-| `Albums.vue` | Media library |
-| `Team.vue` | Team members |
-| `Profile.vue` | User profile |
-| `utms/` | UTM tracking |
+| `EditorV2.vue` | Editor V2 (đang dùng) |
+| `products/`, `Products.vue` | Sản phẩm |
+| `categories/` | Danh mục |
+| `orders/` | Đơn hàng |
+| `customers/`, `Customers.vue` | Khách hàng |
+| `discounts/`, `Discounts.vue` | Khuyến mãi |
+| `payments/` | Phương thức thanh toán |
+| `analytic/`, `Analytics.vue` | Báo cáo |
+| `system_logs/`, `SystemLogs.vue` | Lịch sử thao tác |
+| `blog/` | Bài viết |
+| `app_store/`, `applications/` | Kho ứng dụng |
+| `automations/` | Luồng tự động hoá |
+| `appointments/` | Đặt lịch hẹn |
+| `combo_products/`, `commissions/`, `affiliates/`, `user_affiliates/` | Bán hàng nâng cao |
+| `landing/`, `home_page/`, `Homepage.vue`, `store_home/` | Giao diện storefront |
+| `sale_channels/`, `markets/`, `multilingual/`, `domains/`, `domain_and_seo/` | Phân phối / SEO |
+| `integrations/`, `partner_services/`, `services/`, `webcake/` | Tích hợp bên ngoài |
+| `settings/` | Cài đặt |
+| `History.vue` | Nhật ký hoạt động |
+| `Albums.vue` | Thư viện media |
+| `Team.vue` | Thành viên |
+| `Profile.vue` | Hồ sơ |
+| `utms/` | Theo dõi UTM |
 
 ## `src/components/`
 
 ```text
 components/
-├── common/        # Cross-feature components
-├── dashboard/     # Dashboard widgets
-├── design/        # Ant Design + UI kit wrappers — IMPORT FROM HERE
+├── common/        # Component dùng chéo nhiều feature
+├── dashboard/     # Widget cho dashboard
+├── design/        # Wrapper Ant Design + UI Kit — luôn import từ đây
 ├── editor/        # Editor V1
-├── editor_v2/     # Editor V2 (use for new features)
-├── layout/        # Admin layout (sidebar, topbar, breadcrumb)
-├── mixins/        # Vue mixins
-├── ppd-editor/    # Product page detail editor
-├── preview/       # Storefront preview render
-├── skeleton/      # Loading skeletons
-└── ui/            # Atomic UI (Button, Input,…)
+├── editor_v2/     # Editor V2 (dùng cho tính năng mới)
+├── layout/        # Layout admin (sidebar, topbar, breadcrumb)
+├── mixins/        # Mixin Vue
+├── ppd-editor/    # Editor cho chi tiết sản phẩm
+├── preview/       # Render preview storefront
+├── skeleton/      # Loading skeleton
+└── ui/            # Component nguyên tử (Button, Input,…)
 ```
 
-> Always import shared UI through `@/components/design/<Name>.vue`. See [Components](./components.md).
+> Luôn import UI dùng chung qua `@/components/design/<Name>.vue`. Xem [Components](./components.md).
 
 ## `src/stores/`
 
 ```text
 stores/
-├── editor.js        # Editor V1 store
-├── editor/          # Editor V1 slices
-├── editor_v2/       # Editor V2 slices (layers, traits, history, selection,…)
+├── editor.js        # Store cho Editor V1
+├── editor/          # Slice phụ cho Editor V1
+├── editor_v2/       # Slice Editor V2 (layers, traits, history, selection,…)
 ├── dashboard/
 ├── landing/
-├── general.js       # App-level (theme, layout, global modals)
+├── general.js       # State cấp app (theme, layout, modal toàn cục)
 ├── locale.js
 ├── payment/
 ├── preview.js
-├── site.js          # Current site context
-└── user.js          # Auth user, permissions
+├── site.js          # Site đang chọn
+└── user.js          # User đăng nhập, phân quyền
 ```
 
 ## `src/api/`
 
 ```text
 api/
-├── axiosClient.js          # axios instance (interceptors)
-├── baseApi.js              # CRUD endpoint factory
-├── inFlightPool.ts         # Dedupe identical inflight requests
-├── editor_v2/              # Editor V2 endpoints
-├── landing/                # Calls to landing_page_backend
+├── axiosClient.js          # axios instance (interceptor)
+├── baseApi.js              # Factory cho endpoint CRUD
+├── inFlightPool.ts         # Gộp request trùng đang chờ
+├── editor_v2/              # Endpoint riêng cho Editor V2
+├── landing/                # Gọi sang landing_page_backend
 ├── productApi.js / siteApi.js / orderApi.js / …
 ```
 
-See [API layer](./api-layer.md).
+Xem [Tầng API](./api-layer.md).
 
 ## `schemas/`
 
-Source of truth for Editor V2 traits.
+Nơi định nghĩa trait Editor V2 (nguồn duy nhất):
 
-- `elements/` — per-element schema (one JSON per element).
-- `elements.json` — aggregate registry (generated).
-- `trait-definitions.json` — reusable trait definitions.
-- `npm run validate:schemas` to validate; `npm run build:schemas` to rebuild the aggregate.
+- `elements/` — mỗi element một tệp JSON định nghĩa trait, mặc định, slot.
+- `elements.json` — registry tổng hợp (được sinh ra).
+- `trait-definitions.json` — định nghĩa trait dùng chung.
+- `npm run validate:schemas` để kiểm tra; `npm run build:schemas` để sinh lại registry.
 
-Deep dive: [Editor V2 — Traits & Schema](./editor-v2/07-traits-and-data.md).
+Tham khảo sâu: [Editor V2 — Trait và Schema](./editor-v2/07-traits-and-data.md).
 
-## Naming conventions
+## Quy ước đặt tên
 
-- Components: `PascalCase.vue` (e.g. `ProductTable.vue`).
-- JS files: `camelCase.js`; export plain objects/functions.
-- Stores: `xxx.js` or `xxx/index.js`, ID kebab-case.
-- Folders for features: `snake_case` (to match route slugs).
-- Feature-local leaf components stay inside the feature folder; promote to `components/common/` only after 2+ reuses.
+- Component: `PascalCase.vue` (ví dụ `ProductTable.vue`).
+- Tệp JavaScript: `camelCase.js`; export hàm hoặc object thuần.
+- Store: đặt theo feature `xxx.js` hoặc `xxx/index.js`, ID kebab-case.
+- Thư mục theo feature: `snake_case` để khớp với route slug.
+- Component lá thuộc một feature đặt trong thư mục feature đó; chỉ chuyển lên `components/common/` khi được tái sử dụng ở ít nhất 2 feature.

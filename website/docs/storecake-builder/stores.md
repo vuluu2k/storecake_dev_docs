@@ -1,39 +1,39 @@
 ---
 sidebar_position: 6
-title: Pinia stores
+title: Pinia store
 ---
 
-# Pinia stores
+# Pinia store
 
-Conventions and inventory of the stores that live in `src/stores/`.
+Quy ước và danh mục store đặt trong `src/stores/`.
 
-## Conventions
+## Quy ước chung
 
-- Use `defineStore('<id>', { state, getters, actions })` (Options style) for most stores; setup-style is OK when logic is complex.
-- `state()` is always a function returning an object so each instance is independent.
-- `actions` may be async and call modules in `@/api/`. Never import `axios` directly.
-- `getters` are pure — no side effects, no state mutation.
-- Naming: `useXxxStore`. IDs are kebab-case after the feature (`user`, `site`, `editor-v2-layers`,…).
-- Avoid importing one store inside another at module level. When needed, call `useOther()` **inside an action**.
+- Dùng `defineStore('<id>', { state, getters, actions })` theo style options cho phần lớn store; setup-style chỉ dùng khi logic phức tạp.
+- `state()` luôn là **hàm trả về object** để mỗi instance độc lập.
+- `actions` có thể async và gọi module trong `@/api/`. Không import `axios` trực tiếp.
+- `getters` thuần — không gây hiệu ứng phụ, không mutate state.
+- Đặt tên: `useXxxStore`. ID viết kebab-case theo tên feature (`user`, `site`, `editor-v2-layers`,…).
+- Không import store khác ở cấp module trong tệp store. Khi cần, gọi `useOther()` **bên trong action** để tránh circular dependency.
 
-## Inventory
+## Danh mục store hiện có
 
-| Store | What it owns |
+| Store | Quản lý điều gì |
 | --- | --- |
-| `user.js` | Current user, profile, permissions, JWT, auth flow. |
-| `site.js` | Currently-selected site, locale defaults, domain map. |
-| `general.js` | App-level state — layout flags, global modals, theme. |
-| `locale.js` | Active locale, supported list, sync with `vue-i18n`. |
-| `preview.js` | Editor preview state — device frame, sync editor → preview. |
-| `editor.js`, `editor/` | Editor V1 state (page, block, selection). Legacy. |
-| `editor_v2/` | Editor V2 slices: `layers`, `traits`, `history`, `selection`, `assets`, `ai`. |
-| `dashboard/` | Dashboard stats + filters. |
-| `landing/` | Landing builder state (publish, version). |
-| `payment/` | Stripe customer, plan, subscription, invoices. |
+| `user.js` | User đăng nhập, profile, quyền, JWT, luồng auth. |
+| `site.js` | Site đang chọn, locale mặc định, bản đồ domain. |
+| `general.js` | State cấp app — cờ layout, modal toàn cục, theme. |
+| `locale.js` | Locale hiện tại, danh sách locale hỗ trợ, đồng bộ với `vue-i18n`. |
+| `preview.js` | State preview của Editor — chế độ thiết bị, đồng bộ editor sang preview. |
+| `editor.js`, `editor/` | State Editor V1 (page, block, selection). Legacy. |
+| `editor_v2/` | Các slice Editor V2: `layers`, `traits`, `history`, `selection`, `assets`, `ai`. |
+| `dashboard/` | Số liệu cho dashboard, bộ lọc. |
+| `landing/` | State landing builder (publish, version). |
+| `payment/` | Customer Stripe, gói, đăng ký, hoá đơn. |
 
-> When adding a new store, append it to the table and document its primary state and actions.
+> Khi tạo store mới, bổ sung vào bảng trên kèm mô tả ngắn về state và action chính.
 
-## Recommended store template
+## Mẫu store khuyến nghị
 
 ```js
 // src/stores/product.js
@@ -73,33 +73,33 @@ export const useProductStore = defineStore('product', {
 });
 ```
 
-## Persistence
+## Lưu trữ và khôi phục
 
-Some stores persist to `localStorage`:
+Một số store cần ghi xuống `localStorage`:
 
-- `user.js` — token and selected language.
-- `site.js` — last visited site.
-- `general.js` — theme, sidebar collapsed flag.
+- `user.js` — token và ngôn ngữ đã chọn.
+- `site.js` — site truy cập gần nhất.
+- `general.js` — theme, trạng thái sidebar collapsed.
 
-There is no global `pinia-plugin-persistedstate`; persistence is handled inline (via `watch` or in `src/plugins/`). When you add a new persisted field, check `src/plugins/` to keep the approach consistent.
+Hiện chưa dùng `pinia-plugin-persistedstate` cấp app; việc lưu trữ được xử lý nội tuyến (qua `watch` hoặc trong `src/plugins/`). Khi thêm trường cần lưu, kiểm tra `src/plugins/` để áp dụng cách tiếp cận nhất quán.
 
-## Editor V2 slicing
+## Cách chia slice cho Editor V2
 
-Editor V2 splits state by concern to keep slices testable:
+Editor V2 tách state theo từng mối quan tâm để dễ test:
 
-- `layers` — page node tree.
-- `selection` — selected node(s).
-- `history` — commit-based undo/redo (no whole-tree clones).
-- `traits` — trait values per node.
-- `assets` — uploaded images, fonts, assets.
-- `ai` — AI page generation jobs, progress, prompts.
+- `layers` — cây node của trang.
+- `selection` — node (hoặc các node) đang được chọn.
+- `history` — undo/redo theo commit, không clone toàn bộ cây.
+- `traits` — giá trị trait cho từng node.
+- `assets` — ảnh, font, asset đã upload.
+- `ai` — các job AI sinh trang, tiến trình, lịch sử prompt.
 
-See [Editor V2 — Architecture](./editor-v2/01-architecture.md).
+Xem [Editor V2 — Kiến trúc](./editor-v2/01-architecture.md).
 
-## DevTools and HMR
+## DevTools và HMR
 
-- Vue DevTools detects Pinia automatically (`app.use(createPinia())`).
-- HMR snippet at the end of a store:
+- Vue DevTools tự nhận Pinia khi `app.use(createPinia())`.
+- Snippet HMR ở cuối tệp store:
 
   ```js
   if (import.meta.hot) {
@@ -107,8 +107,8 @@ See [Editor V2 — Architecture](./editor-v2/01-architecture.md).
   }
   ```
 
-## Pitfalls
+## Sai sót thường gặp
 
-- `this` is unavailable in arrow-function actions — use `function` or rely on getters.
-- To reset everything, use `this.$reset()` instead of clearing fields one by one.
-- Do not import stores at the top of shared modules that load before Pinia is installed. Call `useStore()` inside a function instead.
+- Không truy cập được `this` trong action viết dạng arrow function — dùng `function` hoặc lấy state qua tham số (chỉ trong getter).
+- Để reset toàn bộ state, gọi `this.$reset()` thay vì gán từng trường.
+- Không import store ở module cấp top của tệp dùng chung (chạy trước khi Pinia install). Gọi `useStore()` bên trong hàm.

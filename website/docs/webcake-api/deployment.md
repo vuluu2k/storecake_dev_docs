@@ -1,103 +1,103 @@
 ---
 sidebar_position: 10
-title: Deployment
+title: Triển khai
 ---
 
-# Deployment
+# Triển khai
 
-`landing_page_backend` is deployed with **Ansible** + Docker images. The cluster is split per role (backend API, render service, builder, editor, cart, tikpage, worker) so rollouts can be staged.
+`landing_page_backend` triển khai bằng **Ansible** + image Docker. Cluster tách theo vai trò (backend API, dịch vụ render, builder, editor, cart, tikpage, worker) để rollout từng phần an toàn.
 
-## Environments
+## Môi trường
 
-| Env | Audience | Inventory group |
+| Môi trường | Đối tượng | Inventory |
 | --- | --- | --- |
-| Local | Personal dev | `docker-compose.yml` |
-| Staging | QA team | `ansible/inventory.yaml` (staging group) |
-| Production | Customers | `ansible/inventory.yaml` (prod role groups) |
+| Local | Dev cá nhân | `docker-compose.yml` |
+| Staging | QA team | `ansible/inventory.yaml` (group staging) |
+| Production | Khách hàng | `ansible/inventory.yaml` (group prod theo vai trò) |
 
-## Build artifact
+## Artifact build
 
-- Multi-stage Dockerfile:
-  1. Build FE assets (`cd assets && npm ci && npm run deploy`).
-  2. `mix release` with `MIX_ENV=prod`.
-  3. Copy the release into a runtime image (`elixir:1.12.2-alpine`-ish + libvips + ffmpeg).
-- Local sanity:
+- Dockerfile multi-stage:
+  1. Build asset FE (`cd assets && npm ci && npm run deploy`).
+  2. `mix release` với `MIX_ENV=prod`.
+  3. Copy release sang image runtime (`elixir:1.12.2-alpine` kèm libvips + ffmpeg).
+- Build local kiểm thử:
 
   ```bash
   make build
   ```
 
-## Deploy targets
+## Lệnh deploy
 
-| Target | Description |
+| Target | Mô tả |
 | --- | --- |
-| `make deploy-backend` | Deploy the backend API. |
-| `make deploy-render` | Deploy the render service (landing publish). |
-| `make deploy-builder` | Deploy the builder service. |
-| `make deploy-editor` | Deploy the editor service. |
-| `make deploy-cart` | Deploy the cart service. |
-| `make deploy-tikpage` | Deploy the TikTok landing service. |
-| `make deploy-worker` | Deploy workers (Oban, Rabbit consumers). |
-| `make deploy-staging` | Deploy the staging stack. |
+| `make deploy-backend` | Deploy backend API. |
+| `make deploy-render` | Deploy dịch vụ render (publish landing). |
+| `make deploy-builder` | Deploy builder service. |
+| `make deploy-editor` | Deploy editor service. |
+| `make deploy-cart` | Deploy cart service. |
+| `make deploy-tikpage` | Deploy dịch vụ TikTok landing. |
+| `make deploy-worker` | Deploy worker (Oban, consumer Rabbit). |
+| `make deploy-staging` | Deploy stack staging. |
 
-Each target runs `ansible-playbook -i ansible/inventory.yaml ansible/<playbook>.yml`.
+Mỗi target chạy `ansible-playbook -i ansible/inventory.yaml ansible/<playbook>.yml`.
 
-## Migrations on deploy
+## Migration khi deploy
 
-- After the release lands, run:
+- Sau khi container có release mới, chạy:
 
   ```bash
   make migrate
   # = docker compose exec landing-page mix ecto.migrate
   ```
 
-- For tables under logical replication: re-run `make add-table-replica` when needed. See [Database](./database.md).
+- Nếu bảng nằm trong logical replication: chạy lại `make add-table-replica` khi cần. Xem [Cơ sở dữ liệu](./database.md).
 
 ## Hotfix
 
 ```bash
-make hotfix-status   # show what will change
+make hotfix-status   # xem những gì sẽ thay đổi
 make hotfix-head     # apply HEAD
 ```
 
-> The fix must already be on `master` (prod) or `develop` (staging).
+> Fix cần đã được merge vào `master` (prod) hoặc `develop` (staging).
 
 ## Restart / Reload
 
-- Default: `docker compose restart landing-page` (or the corresponding role).
-- For graceful restart, use `:rpc.call/4` or `docker compose exec landing-page bin/landing_page stop && start`.
+- Mặc định: `docker compose restart landing-page` (hoặc vai trò tương ứng).
+- Cần graceful: dùng `:rpc.call/4` hoặc `docker compose exec landing-page bin/landing_page stop && start`.
 
 ## Smoke test
 
 - `GET /healthz` → 200.
-- Public API: `POST /api/v1/forms/<id>/submissions` — submit a test lead.
-- Open the builder, edit a page, watch Oban dashboard for backlog.
-- Sentry quiet for the next 10 minutes.
+- Public API: `POST /api/v1/forms/<id>/submissions` — gửi thử một lead.
+- Mở builder, sửa một trang, theo dõi Oban dashboard xem có backlog không.
+- Sentry không nổi event mới trong 10 phút.
 
 ## Rollback
 
-- CI keeps a `:previous` image tag.
-- SSH to the server, swap the tag, `docker compose up -d`.
-- For migration-related issues: usually roll back code only; migrations rarely roll back cleanly.
+- CI giữ tag `:previous` cho image.
+- SSH vào server, đổi tag, `docker compose up -d`.
+- Với vấn đề liên quan migration: thường chỉ rollback code; migration ít khi rollback sạch.
 
-## Logical replication during DB changes
+## Logical replication trong các thay đổi DB
 
-Per [Database](./database.md):
+Theo [Cơ sở dữ liệu](./database.md):
 
-1. Run the migration on the primary.
-2. If the table is replicated, run `make add-table-replica table=<name>`.
-3. Verify rows + replication lag on the replica.
+1. Chạy migration trên primary.
+2. Nếu bảng đang được replicate, chạy `make add-table-replica table=<name>`.
+3. Verify số dòng + độ lag trên replica.
 
 ## Monitoring
 
 - **Sentry** — project `webcake-api`.
-- **Grafana** — host metrics + Postgres + Oban dashboard.
-- **Telebot alert** — `TELEBOT_ALERT_TOKEN` for critical alerts (stuck job, queue lag).
-- **Phoenix LiveDashboard** — `/dashboard` (super-admin only).
+- **Grafana** — metric host + Postgres + dashboard Oban.
+- **Telebot alert** — `TELEBOT_ALERT_TOKEN` cho cảnh báo quan trọng (job kẹt, queue lag).
+- **Phoenix LiveDashboard** — `/dashboard`, chỉ super-admin.
 
-## Best practices
+## Best practice
 
-- Deploy worker + backend separately so a bad worker can be rolled back without bouncing API.
-- Don't roll multiple roles on the same cluster at the same time.
-- Run `make deploy-worker` **after** `make deploy-backend` so workers pick up the new job format.
-- All prod data fixes go through Elixir scripts (`mix run priv/scripts/<task>.exs`) with code review — never raw `psql`.
+- Deploy worker và backend tách lần để có thể rollback worker mà không phải bounce API.
+- Không cùng lúc deploy nhiều vai trò trên cùng cluster.
+- Chạy `make deploy-worker` **sau** `make deploy-backend` để worker bắt format job mới.
+- Mọi data-fix prod đi qua script Elixir (`mix run priv/scripts/<task>.exs`) có code review — không sửa trực tiếp bằng `psql`.

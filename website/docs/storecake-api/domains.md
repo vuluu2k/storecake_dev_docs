@@ -1,107 +1,107 @@
 ---
 sidebar_position: 4
-title: Domains
+title: Bounded context
 ---
 
-# Domains
+# Bounded context
 
-The bounded contexts in `lib/builderx_api/`. Each context owns its own Ecto schemas + business functions. The cardinal rule: outside callers only touch the context module, never `Repo`.
+Các bounded context (domain) trong `lib/builderx_api/`. Mỗi context sở hữu schema và hàm nghiệp vụ riêng. Quy tắc bất di bất dịch: chỉ chạm context từ bên ngoài, không gọi `Repo` trực tiếp.
 
-## Accounts & Auth
+## Tài khoản và xác thực
 
-- **`accounts/`** — User, account, password, profile.
+- **`accounts/`** — User, account, mật khẩu, profile.
   - `BuilderxApi.Accounts.create_account/1`, `get_account_by_email/1`, `authenticate/2`.
-  - Passwords hashed with Argon2.
-- **`api_keys/`** — Tokens for developer integrations.
-- **`invitations/`** — Member invites.
-- **`otp_codes/`** — OTP codes (email / SMS).
-- **`permissions/`** — RBAC permissions. Plug `BuilderxApiWeb.Plugs.Permission` enforces.
-- **`super_admin/`** — Storecake internal admin, routed via `super_admin_controller`.
+  - Mật khẩu hash bằng Argon2.
+- **`api_keys/`** — Token cho integration của developer.
+- **`invitations/`** — Mời thành viên.
+- **`otp_codes/`** — Mã OTP (email / SMS).
+- **`permissions/`** — Quyền RBAC. Plug `BuilderxApiWeb.Plugs.Permission` kiểm tra.
+- **`super_admin/`** — Tài khoản nội bộ Storecake; route riêng qua `super_admin_controller`.
 
-## Sites & Domain
+## Site và domain
 
-- **`sites/`** — Tenant unit. Every commerce row scopes by `site_id`.
-- **`domains/`** — Custom domains (TXT verify, SSL).
-- **`pages/`** — CMS pages tied to a site.
-- **`seos/`** — SEO meta per page / product.
-- **`sitemaps/`** — Sitemap generation.
-- **`pwas/`** — PWA manifest per site.
-- **`site_styles/`** — Theme overrides.
-- **`site_products/`, `site_tag/`, `site_utms/`** — Helper join tables.
+- **`sites/`** — Đơn vị tenant. Mọi dữ liệu bán hàng đều scope theo `site_id`.
+- **`domains/`** — Tên miền tuỳ chỉnh (verify TXT, SSL).
+- **`pages/`** — Trang CMS gắn với site.
+- **`seos/`** — SEO meta theo trang / sản phẩm.
+- **`sitemaps/`** — Sinh sitemap.
+- **`pwas/`** — Manifest PWA theo site.
+- **`site_styles/`** — Tuỳ biến theme.
+- **`site_products/`, `site_tag/`, `site_utms/`** — Bảng phụ trợ.
 
-## Catalog
+## Sản phẩm
 
-- **`products/`** — Core product + variants. Index via `products/elastic.ex`.
-- **`variations/`** — Variant combinations.
-- **`product_comments/`, `product_reviews/`, `product_measurements/`** — UGC + spec.
-- **`categories/`, `tags/`, `ribbons/`** — Taxonomy + labels.
-- **`combo_products/`, `bonus_products/`** — Bundles / promotions.
-- **`personal_product_designs/`** — Customised products.
-- **`materials/`, `shapes/`** — Attributes for jewellery / gifts.
-- **`catalogs/`** — Generic catalog uploads + per-platform: `fb_catalogs/`, `tiktok_catalog_products/`, `google_merchant/`.
-- **`collections/`** — Curated collections.
-- **`device_templates/`** — Theme templates surfaced in the Editor.
+- **`products/`** — Sản phẩm + biến thể. Index qua `products/elastic.ex`.
+- **`variations/`** — Tổ hợp biến thể.
+- **`product_comments/`, `product_reviews/`, `product_measurements/`** — Nội dung do user gửi + thông số.
+- **`categories/`, `tags/`, `ribbons/`** — Taxonomy + nhãn.
+- **`combo_products/`, `bonus_products/`** — Bundle + khuyến mãi.
+- **`personal_product_designs/`** — Sản phẩm customise theo khách.
+- **`materials/`, `shapes/`** — Thuộc tính (trang sức, quà tặng).
+- **`catalogs/`** — Upload catalog tổng quát; mỗi nền tảng có sub-domain riêng: `fb_catalogs/`, `tiktok_catalog_products/`, `google_merchant/`.
+- **`collections/`** — Bộ sưu tập.
+- **`device_templates/`** — Theme template hiển thị trong Editor.
 
-## Orders & Payments
+## Đơn hàng và thanh toán
 
-- **`orders/`** — Orders, status, fulfillment.
-- **`order_transactions/`** — Transactions per order.
-- **`customer_invoices/`** — Invoices.
-- **`payments/`, `payment_accounts/`** — Payment-method config (Stripe, COD, MoMo, ZaloPay,…).
-- **`transactions_bank/`** — Bank reconciliation.
-- **`packages/`, `package_subscriptions/`** — Plans + subscriptions.
-- **`promotion_advances/`** — Advanced vouchers.
-- **`cart_triggers/`** — Cart events (abandon, recover).
-- **`appointments/`** — Booking-based services.
+- **`orders/`** — Đơn, trạng thái, fulfillment.
+- **`order_transactions/`** — Giao dịch gắn với đơn.
+- **`customer_invoices/`** — Hoá đơn.
+- **`payments/`, `payment_accounts/`** — Cấu hình thanh toán (Stripe, COD, MoMo, ZaloPay,…).
+- **`transactions_bank/`** — Đối soát ngân hàng.
+- **`packages/`, `package_subscriptions/`** — Gói cước và subscription.
+- **`promotion_advances/`** — Voucher nâng cao.
+- **`cart_triggers/`** — Sự kiện giỏ hàng (abandon, recover).
+- **`appointments/`** — Lịch hẹn cho dịch vụ.
 
-## Customers & Marketing
+## Khách hàng và marketing
 
-- **`customers/`** — End customers.
-- **`contacts/`, `subscribers/`** — Leads, mailing list.
-- **`customer_levels/`** — Loyalty tiers.
-- **`commissions/`, `affiliates/`, `user_affiliates/`, `percent_com_for_sale/`** — Affiliate / commission.
-- **`automations/`** — Trigger + action flows.
+- **`customers/`** — Khách mua hàng.
+- **`contacts/`, `subscribers/`** — Lead, mailing list.
+- **`customer_levels/`** — Hạng loyalty.
+- **`commissions/`, `affiliates/`, `user_affiliates/`, `percent_com_for_sale/`** — Affiliate / hoa hồng.
+- **`automations/`** — Trigger + action.
 - **`notifications/`** — Push, in-app, web-push.
-- **`send_email/`** — Transactional email (via Bamboo).
+- **`send_email/`** — Email transactional (dùng Bamboo).
 
-## Integrations
+## Tích hợp
 
-- **`integrations/`** + **`intergrations/`** (legacy spelling — be careful when grepping).
-- **`partner_services/`** — Shipping / fulfillment / AI partners.
-- **`merchant_syncs/`, `sync_pos/`** — POS / merchant sync.
+- **`integrations/`** và **`intergrations/`** — cả hai tên đều tồn tại do lịch sử.
+- **`partner_services/`** — Đối tác vận chuyển / fulfillment / AI.
+- **`merchant_syncs/`, `sync_pos/`** — Đồng bộ POS / merchant.
 - **`google_ad_accounts/`, `google_ad_transactions/`** — Google Ads.
-- **`google_merchant/`** — Google Merchant feed.
-- **`fb_catalogs/`, `tiktok_catalog_products/`** — Meta / TikTok feeds.
-- **`zalo_mini_app/`** — Zalo mini-app endpoints.
-- **`course_app/`** — Course platform.
-- **`webcake/`** — Integration with `landing_page_backend`.
-- **`agents/`, `ai/`, `qwik/`** — Internal AI assistants.
+- **`google_merchant/`** — Feed Google Merchant.
+- **`fb_catalogs/`, `tiktok_catalog_products/`** — Feed Meta / TikTok.
+- **`zalo_mini_app/`** — Endpoint Zalo mini app.
+- **`course_app/`** — Nền tảng khoá học.
+- **`webcake/`** — Tích hợp với `landing_page_backend`.
+- **`agents/`, `ai/`, `qwik/`** — AI assistant nội bộ.
 
-## Content
+## Nội dung
 
 - **`blogs/`, `templates/`, `global_sources/`**
-- **`cms_files/`** — S3-backed file storage.
-- **`tinymces/`** — TinyMCE drafts.
-- **`form_data/`** — Dynamic forms.
-- **`builder_data_grids/`** — Admin data grids.
-- **`translations/`, `languages.ex`, `locale.ex`** — Storefront i18n.
-- **`images/`, `photos/`, `videos/`, `hls/`, `fonts/`** — Media + streaming.
+- **`cms_files/`** — Lưu trữ file (backend S3).
+- **`tinymces/`** — Bản nháp TinyMCE.
+- **`form_data/`** — Form động.
+- **`builder_data_grids/`** — Data grid cho admin.
+- **`translations/`, `languages.ex`, `locale.ex`** — i18n cho storefront.
+- **`images/`, `photos/`, `videos/`, `hls/`, `fonts/`** — Media và streaming.
 
 ## Logistics
 
-- **`geo/`** — Provinces / districts / communes (new + legacy).
-- **`shippings/`** — Shipping config.
-- **`warehouses/`** — Warehouses.
+- **`geo/`** — Tỉnh / huyện / xã (cả bảng cũ và mới).
+- **`shippings/`** — Cấu hình vận chuyển.
+- **`warehouses/`** — Kho.
 - **`block_phone_numbers/`, `phone_detect.ex`** — Anti-abuse.
 
-## Audit & Tracking
+## Audit và tracking
 
 - **`system_logs/`**, **`system_log_rollback.ex`**
 - **`error_sync_logs/`**
 - **`trackings/`**, **`short_links/`**
 - **`transaction_task.ex`**, **`transaction_task_supervisor.ex`**
 
-## Infra helpers
+## Helper hạ tầng
 
 - `repo.ex`, `custom_ecto.ex`, `parse.ex`, `request.ex`, `validator.ex`, `guards.ex`
 - `tools.ex`, `traversal.ex`, `statics.ex`, `time_util.ex`, `url`, `types`
@@ -109,16 +109,16 @@ The bounded contexts in `lib/builderx_api/`. Each context owns its own Ecto sche
 - `default_theme.ex`, `default_data/`
 - `mailer.ex`, `image_resize.ex`, `aws_s3.ex`
 - `elastic.ex`, `elastic_index.ex`
-- `redlock.ex` (distributed lock over Redis)
+- `redlock.ex` (distributed lock qua Redis)
 
-## Cross-domain rules
+## Quy tắc giữa các domain
 
-- If domain A needs data from domain B, call B's context — never query B's tables directly.
-- If A's write should notify others, write to the **Outbox** (`lib/outbox/`) inside the same transaction. The dispatcher fans out to queues.
-- Avoid circular dependencies: extract a shared `events` module and broadcast via PubSub / Outbox.
-- Index Elastic asynchronously through `Rabbit.IndexingConsumer` — don't block requests.
+- Domain A cần dữ liệu của B → gọi context của B, không truy vấn trực tiếp bảng của B.
+- Khi A ghi và muốn thông báo cho domain khác → ghi vào **Outbox** (`lib/outbox/`) trong cùng transaction. Dispatcher chịu trách nhiệm phát ra queue.
+- Tránh phụ thuộc vòng: nếu hai domain trao đổi event qua lại, tách module `events` riêng và phát qua PubSub / Outbox.
+- Index Elastic chạy bất đồng bộ qua `Rabbit.IndexingConsumer` — không block request.
 
-## Example
+## Ví dụ
 
 ```elixir
 defmodule BuilderxApi.Products do
@@ -141,4 +141,4 @@ defmodule BuilderxApi.Products do
 end
 ```
 
-Subscribers under `lib/rabbit/` / `lib/kafka/` consume those events to update the search index or notify external systems.
+Các subscriber trong `lib/rabbit/` / `lib/kafka/` consume các event này để cập nhật search index hoặc đẩy ra hệ thống bên ngoài.

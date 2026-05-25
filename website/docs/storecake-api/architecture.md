@@ -1,95 +1,95 @@
 ---
 sidebar_position: 2
-title: Architecture
+title: Kiến trúc
 ---
 
-# Architecture
+# Kiến trúc
 
-How `builderx_api` is layered and how it talks to the rest of the platform.
+Cách `builderx_api` được phân lớp và tương tác với phần còn lại của hệ thống.
 
-## Big picture
+## Bức tranh tổng quan
 
 ```text
                 ┌──────────────────────────────────────────────────────────┐
-                │                       Clients                             │
-                │   builderx_spa, mobile, partners, super-admin, pancake…   │
+                │                       Client                              │
+                │   builderx_spa, mobile, partner, super-admin, pancake…    │
                 └──────────────┬────────────────────────┬───────────────────┘
-                               │ HTTP / WS              │ Webhook
+                               │ HTTP / WebSocket       │ Webhook
                                ▼                        ▼
                        ┌─────────────────────────────────────────┐
                        │           Phoenix Endpoint              │
-                       │   (plugs: CORS, auth, rate limit,…)     │
+                       │  (plug: CORS, auth, rate limit,…)       │
                        └─────────┬──────────────┬────────────────┘
-                                 │ Router       │ Channels
+                                 │ Router       │ Channel
                                  ▼              ▼
                 ┌─────────────────────┐  ┌────────────────────────┐
-                │ Controllers / Views │  │ Channels (realtime)    │
+                │ Controller / View   │  │ Channel (realtime)     │
                 └─────────┬───────────┘  └──────────┬─────────────┘
                           │                          │
                           ▼                          ▼
                 ┌─────────────────────────────────────────────────┐
-                │         Domain modules (lib/builderx_api/)      │
-                │   Accounts, Products, Orders, Sites, Customers, │
-                │   Payments, Integrations, Catalogs, …           │
+                │      Domain module (lib/builderx_api/)          │
+                │  Accounts, Products, Orders, Sites, Customers,  │
+                │  Payments, Integrations, Catalogs, …            │
                 └──────┬───────────┬───────────┬─────────┬────────┘
                        │           │           │         │
                        ▼           ▼           ▼         ▼
-                 Citus (PG)   ElasticSearch  Redis     RabbitMQ / Kafka
-                 MongoDB      QuestDB        S3        SMTP / Webhook
+                 Citus (PG)   Elasticsearch  Redis    RabbitMQ / Kafka
+                 MongoDB      QuestDB        S3       SMTP / Webhook
 ```
 
-## Code layout
+## Phân lớp mã nguồn
 
 ```text
 lib/
-├── builderx_api/              # ① Domain — Pure business logic + Ecto schemas
-├── builderx_api_web/          # ② Web — Router, Controllers, Channels, Views, Plugs
-├── cronjob/                   # Quantum scheduler + jobs
-├── rabbit/                    # RabbitMQ consumers / producers
-├── kafka/                     # Kafka producers / consumers
-├── ets/                       # In-memory cache layer
-├── search/                    # Elastic helpers (DSL, mappings)
-├── redis/                     # Redis helpers (cache, lock, pubsub)
-├── outbox/                    # Outbox pattern (transactional events)
-├── pool/                      # Poolboy workers
-├── passive/                   # Long-running supervised processes
-├── questdb/                   # Time-series client
-├── qwik/                      # AI / quick-action services
-├── landingpage/               # Bridge to landing_page_backend
-├── dynamic_app.ex             # Dynamic supervisor (multi-tenant)
+├── builderx_api/              # ① Domain — logic nghiệp vụ + Ecto schema
+├── builderx_api_web/          # ② Lớp web — router, controller, channel, view, plug
+├── cronjob/                   # Quantum scheduler + job
+├── rabbit/                    # Producer / consumer RabbitMQ
+├── kafka/                     # Producer / consumer Kafka
+├── ets/                       # Cache in-memory
+├── search/                    # Helper Elasticsearch (DSL, mapping)
+├── redis/                     # Helper Redis (cache, lock, pubsub)
+├── outbox/                    # Pattern Outbox (event transactional)
+├── pool/                      # Worker Poolboy
+├── passive/                   # Tiến trình giám sát chạy dài
+├── questdb/                   # Client time-series
+├── qwik/                      # Dịch vụ AI / quick-action
+├── landingpage/               # Cầu nối tới landing_page_backend
+├── dynamic_app.ex             # Supervisor động (đa tenant)
 ├── application.ex             # OTP Application
 └── …
 ```
 
-### ① Domain modules (`lib/builderx_api/`)
+### ① Domain (`lib/builderx_api/`)
 
-Each domain is a folder + a root module of the same name:
+Mỗi domain là một thư mục cộng với module gốc cùng tên:
 
 ```text
 lib/builderx_api/products/
 ├── product.ex          # Ecto schema
 ├── product_variant.ex
-├── products.ex         # Context (CRUD + business rules)
-├── elastic.ex          # Bridge to Elastic index
-├── events.ex           # Publishes events (Rabbit/Kafka)
+├── products.ex         # Context (CRUD + business)
+├── elastic.ex          # Cầu nối sang index Elasticsearch
+├── events.ex           # Phát event qua Rabbit/Kafka
 └── …
 ```
 
-Rules:
+Quy tắc:
 
-- Outside callers only touch the context module (`BuilderxApi.Products.list/2`, `BuilderxApi.Products.create/2`).
-- Never call `Repo` outside a context.
-- Schemas hold their own changeset and validation; never leak `Plug.Conn` into a schema.
+- Phía gọi bên ngoài chỉ chạm module context (`BuilderxApi.Products.list/2`, `BuilderxApi.Products.create/2`).
+- Không gọi `Repo` bên ngoài context.
+- Schema gắn liền changeset và validation; không mang `Plug.Conn` vào schema.
 
-### ② Web layer (`lib/builderx_api_web/`)
+### ② Lớp web (`lib/builderx_api_web/`)
 
 ```text
 builderx_api_web/
-├── endpoint.ex                # Root plug pipeline
-├── router/                    # Sub-routers per prefix
+├── endpoint.ex                # Plug pipeline gốc
+├── router/                    # Router con theo prefix
 ├── controllers/
-│   ├── v1/                    # Public / admin v1 APIs
-│   ├── pancake_controller.ex  # Pancake legacy
+│   ├── v1/                    # API admin / public v1
+│   ├── pancake_controller.ex  # Endpoint Pancake legacy
 │   ├── super_admin_controller.ex
 │   ├── susa_controller.ex
 │   ├── crm_pancake_controller.ex
@@ -97,23 +97,23 @@ builderx_api_web/
 │   └── fallback_controller.ex
 ├── channels/                  # Phoenix Channels (realtime)
 ├── plugs/                     # Auth, site context, rate limit, audit
-├── services/                  # Thin service layer for controllers
-├── views/                     # JSON views
+├── services/                  # Service mỏng cho controller
+├── views/                     # JSON view
 ├── templates/                 # HTML (legacy)
-├── schedule.ex                # Quantum scheduler entry
+├── schedule.ex                # Entry Quantum
 ├── telemetry.ex
 └── presence.ex                # Phoenix.Presence
 ```
 
-Rules:
+Quy tắc:
 
-- Controllers stay thin: parse params → call context → render view.
-- Plugs in `plugs/` cover auth (Bearer JWT), site context, rate limiting, auditing.
-- Channel topics follow `site:<site_id>`, `account:<account_id>`, `super_admin:lobby`.
+- Controller mỏng: parse param → gọi context → render view.
+- Plug đảm nhận xác thực (Bearer JWT), gắn site context, rate limit, audit.
+- Topic channel theo cấu trúc `site:<site_id>`, `account:<account_id>`, `super_admin:lobby`.
 
-## OTP / Supervision tree
+## Cây giám sát OTP
 
-`application.ex` (simplified):
+`application.ex` (rút gọn):
 
 ```text
 BuilderxApi.Application (Supervisor :one_for_one)
@@ -121,7 +121,7 @@ BuilderxApi.Application (Supervisor :one_for_one)
 ├── BuilderxApi.Citus
 ├── Phoenix.PubSub
 ├── BuilderxApiWeb.Endpoint
-├── BuilderxApi.DynamicApp        # spawns workers per site
+├── BuilderxApi.DynamicApp        # spawn worker theo site
 ├── Rabbit.Supervisor
 ├── Kafka.Supervisor
 ├── Redis.Supervisor
@@ -131,63 +131,63 @@ BuilderxApi.Application (Supervisor :one_for_one)
 └── …
 ```
 
-`DynamicApp` spawns dedicated GenServers per site (ETS cache, indexing job, per-tenant cron). Skim `dynamic_app.ex` to understand onboarding behavior.
+`DynamicApp` spawn GenServer riêng theo site (cache ETS, indexer, cron riêng cho từng tenant). Đọc `dynamic_app.ex` để hiểu vòng đời khi onboard site mới.
 
-## Multi-tenancy
+## Đa tenant
 
-- Most tables include a `site_id` (UUID) column. Indices are partitioned by `site_id` so Citus can distribute.
-- Global tables (account, plan, geo) stay on the regular Postgres repo (no sharding).
-- Citus configuration is documented in [Database](./database.md).
+- Phần lớn bảng có cột `site_id` (UUID). Index theo `site_id` để Citus phân tán hiệu quả.
+- Bảng global (account, plan, geo) nằm trên repo Postgres thường (không shard).
+- Chi tiết Citus xem [Cơ sở dữ liệu](./database.md).
 
-## External integrations
+## Tích hợp bên ngoài
 
-| Integration | Code | Notes |
+| Tích hợp | Vị trí code | Ghi chú |
 | --- | --- | --- |
-| Pancake CRM | `pancake_controller`, related modules | OAuth + webhooks |
-| Sapo / Haravan / Shopify | `lib/builderx_api/integrations` | Sync product / order |
-| Google Drive / Sheets | `lib/builderx_api/...` | Catalog sync, export |
-| Stripe | `lib/builderx_api/payments` | Plans / subscriptions |
-| SMTP | `lib/email/`, Bamboo | Transactional email |
-| Webhooks | `lib/builderx_api/...` + `outbox` | Idempotent via outbox |
-| ElasticSearch | `lib/search/`, `<domain>/elastic.ex` | Product / customer / order index |
-| MongoDB | `lib/db_collections/` | Dynamic-shape documents |
+| Pancake CRM | `pancake_controller`, các module liên quan | OAuth + webhook |
+| Sapo / Haravan / Shopify | `lib/builderx_api/integrations` | Đồng bộ sản phẩm / đơn hàng |
+| Google Drive / Sheets | `lib/builderx_api/...` | Đồng bộ danh mục, export |
+| Stripe | `lib/builderx_api/payments` | Gói cước / subscription |
+| SMTP | `lib/email/`, Bamboo | Email transactional |
+| Webhook | `lib/builderx_api/...` + `outbox` | Đảm bảo idempotent qua outbox |
+| Elasticsearch | `lib/search/`, `<domain>/elastic.ex` | Index sản phẩm / khách hàng / đơn |
+| MongoDB | `lib/db_collections/` | Document có cấu trúc động |
 
-See [Integrations](./integrations.md) for the full list.
+Xem danh sách đầy đủ tại [Tích hợp](./integrations.md).
 
 ## Realtime
 
-- Channel joins require an auth token (`BuilderxApiWeb.UserSocket.connect/3`).
-- Common topics: `site:<id>:editor`, `site:<id>:order`, `account:<id>:notification`.
-- Publish from a domain with `Phoenix.PubSub` or `BuilderxApiWeb.Endpoint.broadcast/3`.
+- Channel join cần token (`BuilderxApiWeb.UserSocket.connect/3`).
+- Topic phổ biến: `site:<id>:editor`, `site:<id>:order`, `account:<id>:notification`.
+- Phát event từ domain qua `Phoenix.PubSub` hoặc `BuilderxApiWeb.Endpoint.broadcast/3`.
 
-## Background workflows
+## Các luồng nền
 
-1. **Outbox** — A domain writes a row to outbox **inside** the same transaction as its main write; a dispatcher later forwards to Rabbit / Kafka / webhooks.
-2. **Rabbit consumers** — `lib/rabbit/` declares consumers (`IndexingConsumer`, `TaskPoolConsumer`, …). Started by the supervisor; you can also boot them manually for debugging.
-3. **Kafka consumers** — Analytic and conversion events. Each consumer declares its group + topic.
-4. **Cronjobs** — `lib/cronjob/` + `lib/builderx_api/business_cronjobs/` contain scheduled jobs.
-5. **Ad-hoc workers** — `lib/passive/`, `lib/pool/`.
+1. **Outbox** — Domain ghi DB **và** ghi một row vào outbox trong cùng transaction; dispatcher đẩy ra Rabbit / Kafka / webhook sau đó.
+2. **Rabbit consumer** — `lib/rabbit/` khai báo các consumer (`IndexingConsumer`, `TaskPoolConsumer`,…). Được supervisor khởi động; có thể chạy thủ công khi debug.
+3. **Kafka consumer** — Analytic và conversion. Mỗi consumer khai báo group + topic.
+4. **Cronjob** — `lib/cronjob/` + `lib/builderx_api/business_cronjobs/` chứa job định kỳ.
+5. **Worker ad-hoc** — `lib/passive/`, `lib/pool/`.
 
-## Request lifecycle
+## Vòng đời request
 
 ```text
 HTTP request
- → Endpoint plugs (parser, CORS)
- → AuthPlug (verify JWT, assign current_user)
- → SiteContextPlug (assign site_id)
+ → Endpoint plug (parser, CORS)
+ → AuthPlug (xác minh JWT, gán current_user)
+ → SiteContextPlug (gán site_id)
  → Router → Controller action
  → Context (lib/builderx_api/<domain>)
  → Repo (Postgres) / Elastic / Redis
  → View (JSON) → response
- → Outbox / Channel broadcast (if a write happened)
+ → Outbox / Channel broadcast (nếu có ghi)
 ```
 
-## Further reading
+## Tài liệu liên quan
 
-- [Project structure](./project-structure.md)
-- [Domains](./domains.md)
-- [Database](./database.md)
-- [Integrations](./integrations.md)
-- [Cronjobs](./cronjobs.md)
-- [Run book](./run.md)
-- [Error catalogue](./error.md)
+- [Cấu trúc dự án](./project-structure.md)
+- [Bounded context](./domains.md)
+- [Cơ sở dữ liệu](./database.md)
+- [Tích hợp](./integrations.md)
+- [Cronjob](./cronjobs.md)
+- [Runbook](./run.md)
+- [Lỗi thường gặp](./error.md)

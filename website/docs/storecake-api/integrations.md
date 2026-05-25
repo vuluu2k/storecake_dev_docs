@@ -1,37 +1,37 @@
 ---
 sidebar_position: 7
-title: Integrations
+title: Tích hợp
 ---
 
-# Integrations
+# Tích hợp
 
-External services + infrastructure that `builderx_api` depends on. Each entry calls out where the code lives, how to switch it on/off, and gotchas you'll likely hit while developing.
+Các dịch vụ ngoài và hạ tầng mà `builderx_api` phụ thuộc. Mỗi mục chỉ rõ vị trí code, cách bật/tắt và những điểm cần lưu khi phát triển.
 
-## ElasticSearch
+## Elasticsearch
 
-- Library: `:erlastic_search` + helpers in `lib/search/`.
-- Each domain has its own mapping/index (`lib/builderx_api/<domain>/elastic.ex`).
-- Indexing flow:
-  1. Domain writes to DB.
-  2. Outbox publishes the event.
-  3. `Rabbit.IndexingConsumer` consumes and updates Elastic.
-- Manual reindex (in IEx):
+- Thư viện: `:erlastic_search` + helper trong `lib/search/`.
+- Mỗi domain có mapping / index riêng (`lib/builderx_api/<domain>/elastic.ex`).
+- Luồng index:
+  1. Domain ghi DB.
+  2. Outbox phát event.
+  3. `Rabbit.IndexingConsumer` consume và cập nhật Elastic.
+- Reindex thủ công trong IEx:
 
   ```elixir
   Elastic.re_setup_product_index
-  Elastic.confirm_re_setup_product_index    # drops the old index
+  Elastic.confirm_re_setup_product_index    # xoá index cũ
   ```
 
-- Env: `ELASTIC_HOST`, `ELASTIC_PORT`, `ELASTIC_USERNAME`, `ELASTIC_PASSWORD`.
+- Biến môi trường: `ELASTIC_HOST`, `ELASTIC_PORT`, `ELASTIC_USERNAME`, `ELASTIC_PASSWORD`.
 
 ## RabbitMQ
 
-- Library: `:amqp` + modules under `lib/rabbit/`.
-- Connection env: `R_HOST`, `R_PORT`, `R_USERNAME`, `R_PASSWORD`, `R_VIRTUAL_HOST`.
-- Main consumers:
-  - `Rabbit.IndexingConsumer` — Elastic index events.
-  - `Rabbit.TaskPoolConsumer` — Batch tasks (cache, sync,…).
-- During dev you can boot consumers manually from IEx:
+- Thư viện: `:amqp` + module `lib/rabbit/`.
+- Biến môi trường kết nối: `R_HOST`, `R_PORT`, `R_USERNAME`, `R_PASSWORD`, `R_VIRTUAL_HOST`.
+- Consumer chính:
+  - `Rabbit.IndexingConsumer` — event index Elastic.
+  - `Rabbit.TaskPoolConsumer` — task batch (cache, sync,…).
+- Khi dev có thể khởi động consumer thủ công trong IEx:
 
   ```elixir
   BuilderxApi.DynamicApp.start_rabbit
@@ -39,117 +39,117 @@ External services + infrastructure that `builderx_api` depends on. Each entry ca
   Rabbit.TaskPoolConsumer.start_link
   ```
 
-- Queue names are prefixed per env to avoid cross-environment consumption.
+- Tên queue gắn prefix theo môi trường để tránh consume nhầm nhau.
 
 ## Kafka
 
-- Library: `:brod`, configured in `lib/kafka/`.
-- Env: `KAFKA1_HOST`, `KAFKA1_PORT`, …
-- Used for high-throughput analytics, conversion, pixel.
-- Consumers run under their own supervisor; consumer-group names match the service (`storecake.indexing`, `storecake.analytics`).
+- Thư viện: `:brod`, cấu hình trong `lib/kafka/`.
+- Biến môi trường: `KAFKA1_HOST`, `KAFKA1_PORT`, …
+- Dùng cho event throughput cao: analytic, conversion, pixel.
+- Consumer chạy trong supervisor riêng; tên consumer-group theo service (`storecake.indexing`, `storecake.analytics`).
 
 ## Redis
 
-- Library: `:redix`, modules in `lib/redis/` + `lib/redlock.ex`.
-- Env: `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB`.
-- Use cases:
-  - Site-scoped product / category cache (see [Run book](./run.md)).
-  - PubSub bridging into Phoenix PubSub.
-  - Distributed locks (prevent double-charge / double-publish).
+- Thư viện: `:redix`, module `lib/redis/` + `lib/redlock.ex`.
+- Biến môi trường: `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB`.
+- Trường hợp dùng:
+  - Cache sản phẩm / danh mục theo site (xem [Runbook](./run.md)).
+  - Cầu nối PubSub vào Phoenix PubSub.
+  - Distributed lock (chống double-charge / double-publish).
 
 ## MongoDB
 
-- Library: `:mongodb_driver`.
-- Env: `MONGO_URI`.
-- Avoid transactions across documents when not strictly necessary.
-- For bulk inserts, prefer `Mongo.insert_many` over loops.
+- Thư viện: `:mongodb_driver`.
+- Biến môi trường: `MONGO_URI`.
+- Tránh transaction trải nhiều document khi không thực sự cần.
+- Bulk insert dùng `Mongo.insert_many` thay vì loop.
 
 ## Email (SMTP)
 
-- Library: `:bamboo` + `:bamboo_smtp`; `bamboo_test_adapter` in test.
-- Modules: `lib/email.ex`, `lib/builderx_api/mailer.ex`.
-- Templates live in `priv/gettext/` (strings) + `lib/builderx_api_web/templates/email/` (HTML).
-- Env: `EMAIL_USERNAME`, `EMAIL_PASSWORD`, SMTP host/port.
+- Thư viện: `:bamboo` + `:bamboo_smtp`; ở test dùng `bamboo_test_adapter`.
+- Module: `lib/email.ex`, `lib/builderx_api/mailer.ex`.
+- Template chữ ở `priv/gettext/`, HTML ở `lib/builderx_api_web/templates/email/`.
+- Biến môi trường: `EMAIL_USERNAME`, `EMAIL_PASSWORD`, SMTP host/port.
 
 ## Google APIs
 
-- `google_api_drive`, `google_api_sheets` (shared with `landing_page_backend`).
-- Env: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET_KEY`, `GOOGLE_API_KEY`, `GG_CALLBACK_URL`.
-- Use cases: catalog sync from Sheets, Drive picker, OAuth login.
+- `google_api_drive`, `google_api_sheets` (dùng chung với `landing_page_backend`).
+- Biến môi trường: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET_KEY`, `GOOGLE_API_KEY`, `GG_CALLBACK_URL`.
+- Trường hợp dùng: đồng bộ danh mục từ Sheets, Drive picker, OAuth login.
 
 ## Pancake ID / Pancake CRM
 
 - OAuth client: `PANCAKEID_CLIENT_ID`, `PANCAKEID_CLIENT_SECRET`.
 - Endpoint: `AUTH_URL` (`https://account.pancake.vn`).
-- Dedicated controllers: `pancake_controller.ex`, `crm_pancake_controller.ex`.
+- Controller riêng: `pancake_controller.ex`, `crm_pancake_controller.ex`.
 
 ## Stripe
 
-- SDK calls go through HTTPoison.
-- Env: `STRIPE_SK`, `STRIPE_WEBHOOK_SECRET_KEY`.
-- Powers Storecake subscription plans and per-store Stripe payments.
+- Gọi qua HTTPoison.
+- Biến môi trường: `STRIPE_SK`, `STRIPE_WEBHOOK_SECRET_KEY`.
+- Hỗ trợ gói cước Storecake và thanh toán Stripe của cửa hàng.
 
 ## Facebook / Botcake
 
 - `FACEBOOK_APP_ID`, `FACEBOOK_SECRET_KEY` — Login + Catalog.
-- `BOTCAKE_*` — Botcake chatbot integration.
-- `FACEBOOK_APP_ID_LG`, `FACEBOOK_SECRET_KEY_LG` — LG-specific environment.
+- `BOTCAKE_*` — Tích hợp Botcake (chatbot).
+- `FACEBOOK_APP_ID_LG`, `FACEBOOK_SECRET_KEY_LG` — Môi trường LG riêng.
 
 ## Slack
 
-- Env: `SLACK_CLIENT_ID`, `SLACK_SECRET_ID`.
-- Used for automation notifications.
+- Biến môi trường: `SLACK_CLIENT_ID`, `SLACK_SECRET_ID`.
+- Dùng cho thông báo của các luồng automation.
 
 ## Dropbox / Instagram / Dribbble / Vimeo / DeviantArt
 
-- Asset pickers (Editor / CMS file).
-- Each service has its own client ID / secret (`DROPBOX_APP_KEY`, `INSTAGRAM_CLIENT_ID`,…).
+- Picker tài nguyên (cho Editor / CMS file).
+- Mỗi dịch vụ có client id / secret riêng (`DROPBOX_APP_KEY`, `INSTAGRAM_CLIENT_ID`,…).
 
 ## Google Ads
 
 - `DEVELOPER_TOKEN`, `GOOGLE_ADS_MANAGE_ACCOUNT`.
-- Pull / push campaigns per store.
+- Pull / push campaign cho từng cửa hàng.
 
-## Captcha (reCAPTCHA)
+## reCAPTCHA
 
 - `CAPTCHA_SECRET_KEY`.
-- Verifies public forms (signup, contact).
+- Verify cho các form công khai (đăng ký, contact).
 
 ## GHTK (B2C)
 
-- `B2C_TOKEN_GHTK` — GHTK shipping integration.
+- `B2C_TOKEN_GHTK` — tích hợp vận chuyển GHTK.
 
-## Webcake bridge
+## Cầu nối Webcake
 
-- `WEBCMS_API`, `WEBCMS_SECRET_KEY` — `webcms` endpoint.
-- Bridge modules: `lib/landingpage/`, `lib/builderx_api/webcake/`.
-- Landing page publish triggers RPC to `landing_page_backend`.
+- `WEBCMS_API`, `WEBCMS_SECRET_KEY` — endpoint của `webcms`.
+- Module cầu nối: `lib/landingpage/`, `lib/builderx_api/webcake/`.
+- Publish landing page sẽ gọi RPC sang `landing_page_backend`.
 
 ## RapidAPI
 
-- `RAPID_API_KEY` — Aggregated third-party APIs (international geo, etc.).
+- `RAPID_API_KEY` — API tổng hợp của bên thứ ba (ví dụ địa danh quốc tế).
 
 ## Sentry
 
-- Library: `:sentry ~> 10.2`.
-- Env: `SENTRY_DSN`, `SENTRY_ENV`.
-- Helper module: `BuilderxApi.ErrorTracker.capture/2`.
-- In dev, leave `SENTRY_DSN` empty to avoid sending events.
+- Thư viện: `:sentry ~> 10.2`.
+- Biến môi trường: `SENTRY_DSN`, `SENTRY_ENV`.
+- Helper: `BuilderxApi.ErrorTracker.capture/2`.
+- Ở dev nên để `SENTRY_DSN` rỗng để không bắn event.
 
 ## QuestDB
 
-- Env: `QUESTDB_HOST`, `QUESTDB_HTTP_PORT`, `QUESTDB_ILP_PORT`.
-- Sender pushes points via ILP (TCP).
+- Biến môi trường: `QUESTDB_HOST`, `QUESTDB_HTTP_PORT`, `QUESTDB_ILP_PORT`.
+- Sender đẩy point qua ILP (TCP).
 
-## Other infra
+## Hạ tầng nội bộ khác
 
-- **WebCMS** (`webcms` repo) — Required by indexing flow; run `make beam` inside `webcms` (see [Run book](./run.md)).
-- **landing_page_backend** — Deployed separately but shares some queues; keep the Rabbit cluster aligned.
+- **WebCMS** (`webcms`) — Cần thiết cho luồng indexing; chạy `make beam` trong `webcms` (xem [Runbook](./run.md)).
+- **landing_page_backend** — Deploy độc lập nhưng dùng chung một số queue; giữ cụm Rabbit đồng bộ.
 
-## Adding a new integration
+## Thêm tích hợp mới
 
-1. Create `lib/builderx_api/<integration>/` for client + context.
-2. Declare new env keys in `config/env_config.exs` and update [Environment](./environment.md).
-3. For long-running integrations (consumers), add a GenServer + register it in the supervisor.
-4. Always set explicit timeouts and retries (HTTPoison `recv_timeout`, Brod producer retries).
-5. Add an integration test stub (`test/`).
+1. Tạo `lib/builderx_api/<integration>/` chứa client và context.
+2. Khai báo biến môi trường mới ở `config/env_config.exs` và cập nhật [Biến môi trường](./environment.md).
+3. Tích hợp chạy dài (consumer) thì thêm GenServer và đăng ký vào supervisor.
+4. Luôn đặt timeout và retry rõ ràng (HTTPoison `recv_timeout`, Brod producer retry).
+5. Bổ sung test stub trong `test/`.

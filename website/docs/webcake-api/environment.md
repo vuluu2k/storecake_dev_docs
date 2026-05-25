@@ -1,107 +1,107 @@
 ---
 sidebar_position: 9
-title: Environment variables
+title: Biến môi trường
 ---
 
-# Environment variables
+# Biến môi trường
 
-`landing_page_backend` reads runtime config from `config/env_config.exs`. The local sample is `.dev.env`.
+`landing_page_backend` đọc cấu hình runtime ở `config/env_config.exs`. Tệp mẫu cho local là `.dev.env`.
 
-## Conventions
+## Quy ước
 
-- Docker: env loads through `env_file` in `docker-compose.yml`.
-- Native: `set -a; source .env; set +a` then `mix phx.server`.
-- **Never** commit production secrets. `.dev.env` only carries internal dev values.
+- Docker: env được nạp qua `env_file` trong `docker-compose.yml`.
+- Native: `set -a; source .env; set +a` trước khi `mix phx.server`.
+- **Không** commit secret prod. `.dev.env` chỉ chứa giá trị dev nội bộ.
 
-## Reference
+## Bảng tham chiếu
 
-### Core
+### Lõi
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
 | `MIX_ENV` | `dev` / `prod` / `test`. |
-| `NODE_ENV` | Asset build (`development` / `production`). |
-| `JWT_KEY` | JWT signing secret. |
-| `SECRET_KEY_BASE` | Phoenix endpoint secret (prod via vault). |
-| `BUILDER_HOST` | Builder host (`localhost` for dev). |
-| `PHX_HOST` | Phoenix endpoint host (prod). |
-| `PORT` | HTTP port (default 4000). |
+| `NODE_ENV` | Build asset FE (`development` / `production`). |
+| `JWT_KEY` | Secret ký JWT. |
+| `SECRET_KEY_BASE` | Secret cho Phoenix endpoint (prod inject qua vault). |
+| `BUILDER_HOST` | Host của builder (`localhost` khi dev). |
+| `PHX_HOST` | Host Phoenix endpoint (prod). |
+| `PORT` | Port HTTP (mặc định 4000). |
 
 ### Database
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
-| `DATABASE_URL` | Primary Postgres URL. |
-| `REPLICA_DATABASE_URL` | Replica URL (when enabled). |
+| `DATABASE_URL` | Postgres URL chính. |
+| `REPLICA_DATABASE_URL` | URL replica (khi bật). |
 | `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` | Redis. |
-| `ELASTIC_HOST` / `ELASTIC_PORT` / `ELASTIC_USERNAME` / `ELASTIC_PASSWORD` | Elastic. |
+| `ELASTIC_HOST` / `ELASTIC_PORT` / `ELASTIC_USERNAME` / `ELASTIC_PASSWORD` | Elasticsearch. |
 | `QUESTDB_HOST` / `QUESTDB_HTTP_PORT` / `QUESTDB_ILP_PORT` | QuestDB. |
 
 ### RabbitMQ
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
 | `R_HOST` | Host. |
-| `R_PORT` | AMQP port. |
+| `R_PORT` | Cổng AMQP. |
 | `R_USERNAME` | User. |
 | `R_PASSWORD` | Password. |
 
 ### Kafka
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
-| `KAFKA1_HOST` | Broker 1 host. |
-| `KAFKA1_PORT` | Broker 1 port. |
-| `KAFKA2_HOST` | Broker 2 host (cluster). |
-| `KAFKA2_PORT` | Broker 2 port. |
+| `KAFKA1_HOST` | Host broker 1. |
+| `KAFKA1_PORT` | Cổng broker 1. |
+| `KAFKA2_HOST` | Host broker 2 (cluster). |
+| `KAFKA2_PORT` | Cổng broker 2. |
 
 ### AWS S3
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
 | `AWS_ACCESS_KEY_ID` | Access key. |
 | `AWS_SECRET_ACCESS_KEY` | Secret. |
 | `AWS_REGION` | Region. |
-| `S3_BUCKET_PUBLIC` | Public bucket. |
-| `S3_BUCKET_PRIVATE` | Private bucket. |
+| `S3_BUCKET_PUBLIC` | Bucket công khai. |
+| `S3_BUCKET_PRIVATE` | Bucket private. |
 
-### Pancake & OAuth
+### Pancake và OAuth
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
-| `PANCAKEID_CLIENT_ID` / `_SECRET` | Pancake ID OAuth. |
-| `PANCAKE_SECRET_KEY` | Internal Pancake signing key. |
-| `AUTH_URL` | Pancake auth URL. |
+| `PANCAKEID_CLIENT_ID` / `_SECRET` | OAuth Pancake ID. |
+| `PANCAKE_SECRET_KEY` | Khoá ký nội bộ Pancake. |
+| `AUTH_URL` | URL Pancake auth. |
 | `GOOGLE_CLIENT_ID` / `_SECRET_KEY` / `_API_KEY` | Google API. |
-| `FACEBOOK_APP_ID` / `_SECRET_KEY` | Facebook (if used). |
+| `FACEBOOK_APP_ID` / `_SECRET_KEY` | Facebook (khi dùng). |
 
-### Internal bridges
+### Cầu nối nội bộ
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
-| `WEBCMS_API` | WebCMS endpoint (`webcms_app:4000`). |
-| `WEBCMS_SECRET_KEY` | WebCMS RPC secret. |
-| `STORECAKE_SECRET_KEY` | Signs requests into `builderx_api`. |
-| `WEBCAKE_SECRET_KEY` | Internal Webcake signing. |
-| `SUSA_SECRET_KEY` | Susa sync. |
-| `POS_SECRET_KEY` | POS secret. |
-| `SERVICE_SECRET_KEY` | Generic service secret. |
-| `CRM_SECRET_KEY` | CRM secret. |
-| `HOST_PKE` | URL shortener / pke endpoint. |
-| `ANALYTICS_HOST` / `_PORT` | Internal analytics service. |
+| `WEBCMS_API` | Endpoint WebCMS (`webcms_app:4000`). |
+| `WEBCMS_SECRET_KEY` | Secret RPC WebCMS. |
+| `STORECAKE_SECRET_KEY` | Ký request sang `builderx_api`. |
+| `WEBCAKE_SECRET_KEY` | Secret nội bộ của Webcake. |
+| `SUSA_SECRET_KEY` | Đồng bộ Susa. |
+| `POS_SECRET_KEY` | Secret POS. |
+| `SERVICE_SECRET_KEY` | Secret service tổng quát. |
+| `CRM_SECRET_KEY` | Secret CRM. |
+| `HOST_PKE` | URL dịch vụ rút gọn / PKE. |
+| `ANALYTICS_HOST` / `_PORT` | Dịch vụ analytics nội bộ. |
 
 ### Stripe / Paypal
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
-| `STRIPE_SK` | Stripe secret. |
+| `STRIPE_SK` | Stripe secret key. |
 | `PAYPAL_CLIENT_ID` | Paypal client. |
 | `PAYPAL_SECRET_ID` | Paypal secret. |
-| `PAYPAL_HOST` | Paypal endpoint (sandbox / prod). |
+| `PAYPAL_HOST` | Endpoint Paypal (sandbox / prod). |
 
-### eCommerce platforms
+### Nền tảng eCommerce
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
 | `SAPO_CLIENT_ID` / `_SECRET` | Sapo OAuth. |
 | `SHOPIFY_CLIENT_ID` / `_SECRET` | Shopify OAuth. |
@@ -109,56 +109,56 @@ title: Environment variables
 
 ### AI
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
 | `DEEPINFRA_API_KEY` | DeepInfra text. |
 | `DEEPINFRA_API_KEY_IMAGE` | DeepInfra image. |
 | `GEMINI_API_KEY` | Google Gemini. |
 
-### Alerts & notifications
+### Cảnh báo và thông báo
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
-| `TELEBOT_ALERT_TOKEN` | Telegram alert bot. |
-| `TELEGROUP_ALERT` | Telegram group ID. |
+| `TELEBOT_ALERT_TOKEN` | Bot Telegram cảnh báo. |
+| `TELEGROUP_ALERT` | ID group Telegram. |
 | `SLACK_CLIENT_ID` / `_SECRET_ID` | Slack. |
-| `BOTCAKE_SECRET_KEY` | Botcake bridge. |
+| `BOTCAKE_SECRET_KEY` | Cầu nối Botcake. |
 
-### Assets & tooling
+### Asset và công cụ
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
-| `CLIPPING_MAGIC_ID` | Clipping Magic ID. |
-| `CLIPPING_MAGIC_KEY` | Clipping Magic key. |
-| `CLIPPING_MAGIC_TEST` | `true` for test env. |
-| `B2C_TOKEN_GHTK` | GHTK B2C token. |
-| `GITHUB_TOKEN` | GitHub token (CI / release checks). |
+| `CLIPPING_MAGIC_ID` | ID Clipping Magic. |
+| `CLIPPING_MAGIC_KEY` | Key Clipping Magic. |
+| `CLIPPING_MAGIC_TEST` | `true` khi dùng môi trường test. |
+| `B2C_TOKEN_GHTK` | Token GHTK B2C. |
+| `GITHUB_TOKEN` | GitHub token (CI / kiểm tra release). |
 
 ### Email
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
-| `EMAIL_USERNAME` | SMTP user. |
-| `EMAIL_PASSWORD` | SMTP password / app password. |
-| `SMTP_HOST` / `SMTP_PORT` | SMTP host/port overrides. |
+| `EMAIL_USERNAME` | User SMTP. |
+| `EMAIL_PASSWORD` | Password / app password SMTP. |
+| `SMTP_HOST` / `SMTP_PORT` | Override host / port SMTP nếu cần. |
 
 ### Sentry
 
-| Key | Purpose |
+| Khoá | Mục đích |
 | --- | --- |
-| `SENTRY_DSN` | Project DSN. |
+| `SENTRY_DSN` | DSN dự án. |
 | `SENTRY_ENV` | `dev` / `staging` / `prod`. |
 
-## Tips
+## Mẹo
 
-- Inspect inside IEx: `System.get_env("R_HOST")`.
-- Editing `.env` requires a container restart.
-- Missing required env causes boot failure; the log tells you which key is missing.
-- Prod secrets ship through Ansible vault, never through `.env`.
+- Trong IEx: `System.get_env("R_HOST")`.
+- Đổi `.env` cần restart container.
+- Thiếu biến bắt buộc → service crash khi boot; log sẽ chỉ rõ khoá nào thiếu.
+- Secret prod nạp qua Ansible vault, không qua `.env`.
 
-## Adding a new variable
+## Thêm biến mới
 
-1. Read it in `config/env_config.exs`.
-2. Add a placeholder to `.dev.env`.
-3. Document it here.
-4. Coordinate with ops to add it to Ansible secrets.
+1. Đọc trong `config/env_config.exs`.
+2. Thêm placeholder vào `.dev.env`.
+3. Ghi nhận tại đây.
+4. Phối hợp ops cập nhật Ansible vault.
