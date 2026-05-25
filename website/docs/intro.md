@@ -7,30 +7,36 @@ description: Developer documentation for the Webcake / Storecake platform.
 
 # Storecake developer documentation
 
-Welcome to the Storecake developer handbook. This site collects setup guides, conventions, and runbooks for the three repositories that power the platform, so any engineer can ramp up, contribute, and ship with confidence.
+Welcome to the Storecake / Webcake developer handbook. This site collects setup guides, architecture overviews, runbooks, and conventions for the three repositories that power the platform.
 
 ## Repositories at a glance
 
 | Project | Repository | Role | Stack |
 | --- | --- | --- | --- |
-| **builderx_spa** | `pancake-vn/builderx_spa` | Web-based site builder — the editor UI that lets users design pages visually. | Vue 3 + Vite, Express SSR shell, Pinia, Ant Design Vue, TailwindCSS |
-| **builderx_api** | `pancake-vn/builderx_api` | Core backend for the builder — products, orders, accounts, integrations, real-time channels. | Phoenix (Elixir), PostgreSQL/Citus, Redis, RabbitMQ, Elasticsearch |
-| **landing_page_backend** | `pancake-vn/landing_page_backend` | Landing-page service used by published sites — public APIs, rendering, lead capture, and integrations. | Phoenix (Elixir), PostgreSQL, Redis, RabbitMQ |
+| **builderx_spa** | `pancake-vn/builderx_spa` | Storefront SPA + admin dashboard, also hosts BuilderX visual editor. | Vue 3 + Vite, Express SSR shell, Pinia, Ant Design Vue, TailwindCSS |
+| **builderx_api** | `pancake-vn/builderx_api` | Core Storecake backend — products, orders, accounts, integrations, real-time channels. | Phoenix (Elixir), PostgreSQL + Citus, Redis, RabbitMQ, Kafka, ElasticSearch, MongoDB |
+| **landing_page_backend** | `pancake-vn/landing_page_backend` | Webcake API — landing page builder, publish, analytics, lead capture. | Phoenix (Elixir), PostgreSQL (logical replication), Oban, Redis, RabbitMQ, Kafka |
+
+`builderx_spa` talks to both backends; `builderx_api` and `landing_page_backend` share Rabbit/Kafka clusters but own their own databases.
 
 ## Where to start
 
-- **Just joining the team?** Read [Setup](./setup.md) for tooling prerequisites, then follow [Git flow](./git-flow.md) for our branching and review process.
-- **Working on the builder UI?** Jump to [Storecake Builder → Technology](./storecake-builder/technology.md) and [Installation](./storecake-builder/installation.md).
-- **Working on backend APIs?** Start with [Storecake API → Technology](./storecake-api/technology.md) or [Webcake API → Installation](./webcake-api/installation.md).
+- **New on the team?** Read [Setup](./setup.md) for prerequisites, then [Git flow](./git-flow.md) for branching conventions.
+- **Building the editor or admin UI?** Start with [Storecake Builder → Technology](./storecake-builder/technology.md) and [Architecture](./storecake-builder/architecture.md).
+- **Backend (commerce)?** Start with [Storecake API → Technology](./storecake-api/technology.md), [Architecture](./storecake-api/architecture.md), [Domains](./storecake-api/domains.md).
+- **Backend (landing/webcake)?** Start with [Webcake API → Technology](./webcake-api/technology.md), [Architecture](./webcake-api/architecture.md), [Workers & Queue](./webcake-api/workers.md).
 
-## How this site is organized
+## How each project section is organized
 
-Each project section follows the same outline so you always know where to look:
+Every project section follows the same outline so you know exactly where to look:
 
-1. **Technology** — stack overview, key dependencies, and system requirements.
-2. **Installation** — clone, build, run locally with Docker or native tooling.
-3. **Extension and rules** — coding conventions, editor extensions, lint and i18n rules.
-4. **Docs research** — links to official upstream docs and short primers on patterns we rely on.
-5. **Error / Run** — runbooks for common operational tasks and known issues (backend projects only).
+1. **Technology** — stack overview, key dependencies, system requirements.
+2. **Architecture** — layers, supervision tree, request lifecycle.
+3. **Project structure** — directory map and naming conventions.
+4. **Domain-specific guides** — stores / routing / database / workers / integrations, depending on the project.
+5. **Installation** — clone, install, run locally with Docker or natively.
+6. **Environment variables** — every key, what it powers, where it comes from.
+7. **Build & Deploy** — release pipeline, Ansible, rollback.
+8. **Runbook / Troubleshooting** — operational commands and known issues.
 
-If something is missing or out of date, edit the page directly from the GitHub link at the top — improvements from anyone are welcome.
+If a page is missing or out of date, click **Edit this page** at the bottom — improvements from anyone are welcome.

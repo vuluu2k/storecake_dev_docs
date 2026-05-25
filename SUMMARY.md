@@ -7,6 +7,15 @@
 ## Storecake Builder
 
 * [Technology](storecake-builder/technology.md)
+* [Architecture](storecake-builder/architecture.md)
+* [Project structure](storecake-builder/project-structure.md)
+* [Routing & Guards](storecake-builder/routing.md)
+* [Pinia stores](storecake-builder/stores.md)
+* [API layer](storecake-builder/api-layer.md)
+* [Internationalization (i18n)](storecake-builder/i18n.md)
+* [Environment variables](storecake-builder/environment.md)
+* [Build & Deploy](storecake-builder/build-and-deploy.md)
+* [Troubleshooting](storecake-builder/troubleshooting.md)
 
 ***
 
@@ -31,16 +40,34 @@
 ## Storecake Api
 
 * [Technology](storecake-api/technology.md)
+* [Architecture](storecake-api/architecture.md)
+* [Project structure](storecake-api/project-structure.md)
+* [Domains](storecake-api/domains.md)
+* [Database (Citus, Mongo, Redis, Elastic)](storecake-api/database.md)
+* [Integrations](storecake-api/integrations.md)
+* [Cronjobs](storecake-api/cronjobs.md)
+* [Environment variables](storecake-api/environment.md)
+* [Deployment](storecake-api/deployment.md)
 
 ***
 
 * [Installation](installation-1.md)
 * [Extension and rules](extension-and-rules-1.md)
 * [Docs research](docs-research-1.md)
-* [Error](error.md)
-* [Run](run.md)
+* [Error catalogue](error.md)
+* [Run book](run.md)
 
 ## Webcake api
 
-* [Installation](webcake-api/installation.md)
 * [Technology](webcake-api/technology.md)
+* [Architecture](webcake-api/architecture.md)
+* [Project structure](webcake-api/project-structure.md)
+* [Domains](webcake-api/domains.md)
+* [Database & replica](webcake-api/database.md)
+* [Workers (Oban) & Queue](webcake-api/workers.md)
+* [Integrations](webcake-api/integrations.md)
+* [Environment variables](webcake-api/environment.md)
+* [Deployment](webcake-api/deployment.md)
+* [Installation](webcake-api/installation.md)
+* [Run book](webcake-api/run.md)
+* [Troubleshooting](webcake-api/troubleshooting.md)
