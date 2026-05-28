@@ -3,20 +3,22 @@ sidebar_position: 1
 title: Editor V2 — Mục lục
 ---
 
+# Editor V2 — Mục lục tài liệu
 
 Tài liệu chi tiết về kiến trúc Editor V2: visual page builder kế thừa convention DOM của Pagefly, port từ craft.js (React) sang Vue 3 Options API + Pinia.
 
 ## Đọc theo thứ tự này
 
-1. [`01-architecture.md`](./01-architecture.md) — Tổng quan kiến trúc, cấu trúc thư mục, 3 store, registry pattern, mixin layering, cách tránh import cycle. ⚠️ Phần data model đã cũ — xem `07` cho data shape mới.
+1. [`01-architecture.md`](./01-architecture.md) — Tổng quan kiến trúc, cấu trúc thư mục, 4 store (node/dnd/ui/history), registry pattern (factory wrap + allowedKeys + renderers precomputed), mixin layering, cách tránh import cycle.
 2. [`02-rendering.md`](./02-rendering.md) — Pipeline render: từ `PageWrapper` → `NodeRenderer` → component, cách Vue reactivity phối hợp với store.
 3. [`03-drag-drop.md`](./03-drag-drop.md) — Luồng kéo-tạo (sidebar → canvas) + kéo-di chuyển (node đã có) + Positioner chi tiết + IndicatorOverlay.
 4. [`04-overlays.md`](./04-overlays.md) — Selection state, ElementToolbar (floating), EdgeOverlays (padding/margin khi hover).
 5. [`05-extending.md`](./05-extending.md) — Cách thêm element mới + case nâng cao (Grid, Product, ProductSlider). ⚠️ Phần trait panel thay bằng `07`.
 6. [`06-troubleshooting.md`](./06-troubleshooting.md) — Lỗi thường gặp, cách debug và checklist khi thêm/sửa element.
-7. [`07-traits-and-data.md`](./07-traits-and-data.md) ★ **MỚI** — **Tài liệu chính** thay thế phần data model + trait panel cũ: 3 namespace (style/config/specials), cascade desktop-first, trait schema, TraitField generic, defaults (primitive + responsive map + complex value), commit dialog qua `applyTrait`, chú thích code theo từng dòng.
-8. [`08-glossary.md`](./08-glossary.md) ★ **MỚI** — Từ viết tắt cho biến (`ns`, `bp`, `def`, `ctx`, `raw`, `merged`, …), mục đích của từng hàm, mapping file, quy ước đặt tên, anti-pattern cần tránh.
+7. [`07-traits-and-data.md`](./07-traits-and-data.md) ★ **Tài liệu chính**: 3 namespace (style/config/specials), cascade desktop-first 2-phase, `DEFINITIONS_DATA` catalog đầy đủ (width_select / bg_* / border / corner / shadow / padding_margin / animation / display / html_tag …), CSS custom properties (`--node-width`, `--layout-direction`), `styleRenderers.js` co-located, `meta.defaults` + factory wrap, `normalizeResponsiveSlot` (canonical + flat shape), `buildElementSchema` mirror per-bp, store-level guard `allowedKeys`.
+8. [`08-glossary.md`](./08-glossary.md) — Từ viết tắt cho biến (`ns`, `bp`, `def`, `ctx`, `raw`, `merged`, …), mục đích của từng hàm, mapping file, quy ước đặt tên, anti-pattern cần tránh.
 9. [`09-ai-page-generation.md`](./09-ai-page-generation.md) ★ **KẾ HOẠCH** — Roadmap 3 phase tích hợp AI generate page (Phase 1 = MVP one-shot full page). Kiến trúc, JSON contracts, building block (`dumpRegistryForLLM` / `validateDef` / `commitAIPage`), chiến lược prompt, cost/quota, test plan, câu hỏi mở. Chưa triển khai — đọc khi bắt đầu Phase 1.
+10. [`10-history.md`](./10-history.md) ★ **MỚI** — Undo / Redo: `PatchRecorder` (forward + inverse atomic), `useHistoryStore` (timeline + pointer + coalesce window + throttle = 300ms), `_commit` chokepoint trong node store, hot path coalesce + `compactPatches`, selection restore, DOM ref scrub. Đọc khi đụng vào mutation flow hoặc debug "Undo nhảy nhiều bước / không nhảy được".
 
 ## Tra cứu nhanh
 
@@ -43,9 +45,10 @@ src/
       index.js                   ← Barrel + nodeLeaf alias + re-export draggableNode
 
   stores/editor_v2/
-    node.js                      ← Tree state + add/move/remove/duplicate + query API + _writeNamespace guard
+    node.js                      ← Tree state + add/move/remove/duplicate + query API + writeNamespaceWithRec guard + _commit chokepoint
     dnd.js                       ← Drag session state + Positioner lifecycle
     editor.js                    ← UI state (breakpoint, sidebar)
+    history.js                   ← Undo/Redo: timeline + pointer + coalesce + throttle (xem 10-history.md)
 
   components/editor_v2/
     PageWrapper.vue              ← Editor entry — canvas + overlays + bootstrapper
@@ -55,7 +58,7 @@ src/
         └── meta.js              ← type='root', runtime metadata (NO Vue, NO @/ alias)
       flex_section/
         ├── index.vue            ← Component + factory
-        ├── meta.js              ← Runtime metadata
+        ├── meta.js              ← Runtime metadata + defaults (style/config/specials/responsive)
         └── ai.js                ← AI hints (lazy-loaded, optional)
       flex_block/
         ├── index.vue
@@ -75,11 +78,18 @@ src/
       sidebar/                   ← Sidebar groups + Element picker
       trait/
         fields/
-          ├── definitions.js     ← Pure data: DEFINITIONS_DATA, getDefinitionData(), buildElementSchema()
+          ├── definitions.js     ← Pure data: DEFINITIONS_DATA, getDefinitionData(), buildElementSchema(), normalizeResponsiveSlot()
+          ├── styleRenderers.js  ← (node) → CSS object — co-located, registered qua collectRenderers
           ├── registry.js        ← COMPONENT_DEFINITIONS với field .component đính kèm
           └── schema_helpers.js  ← JSON Schema builders (string, number, cssColor, responsive, etc.)
+        components/fields/       ← Vue widget cho trait (PaddingTrait, ShadowTrait, CornerTrait, …)
       dialog/                    ← Trait dialog (PaddingDialog, …)
     PageEmpty.vue                ← Canvas trống placeholder
+
+  composable/editor_v2/
+    patchRecorder.js             ← PatchRecorder class + compactPatches + applyPatches (history primitive)
+    get.js                       ← getStyle(node, key, fallback) / getConfig(node, key, fallback) — đọc per-bp
+    responsivePolicy.js          ← defaultStyleSlot / defaultConfigSlot — per-key slot router
 
   assets/editor_v2/
     node.css                     ← Global: wk-node-selected, wk-node-placeholder, cursor
@@ -103,9 +113,12 @@ src/
 | **Auto-wrap** | Drop element không phải Section vào ROOT → tự bọc trong FlexSection |
 | **Style / Config / Specials** | 3 namespace dữ liệu — style=CSS responsive, config=data per-bp opt-in, specials=metadata base-only |
 | **Cascade** | Desktop-first lúc đọc: base ⊕ mọi slot bp có width ≥ current (xem `07`) |
-| **applyTrait** | Dispatcher tổng trong store — route value vào đúng changeStyle/Config/Specials theo `field.target` |
-| **buildElementSchema** | Hàm pure: walk `meta.traits` → resolve definitions → trả về JSON Schema cho element |
-| **allowedKeys** | Set của tất cả key trong traits của element — store guard reject key lạ (catch typo) |
+| **TraitField.onChange** | Dispatcher trong widget — route emit `(key, value)` vào đúng changeStyle/Config/Specials theo `def.writes[key].target` |
+| **buildElementSchema** | Hàm pure: walk `meta.traits` → resolve definitions → trả về JSON Schema cho element (mirror per-bp) |
+| **allowedKeys** | Set của tất cả writeKey trong traits của element — store guard reject key lạ (catch typo). Precomputed lúc `registerElement`. |
+| **renderers** | Ordered array of `(node) → CSS` cho element, precomputed từ `STYLE_RENDERERS` map khi `registerElement`. Consumed bởi `nodeBase.commonStyleData`. |
+| **PatchRecorder** | Class mutate state + thu thập (forward, inverse) patches. Dùng trong `_commit`. |
+| **_commit** | Chokepoint node store: wrap mutation trong `$patch` + `PatchRecorder` + record vào history. |
 
 ### Workflow phổ biến
 
@@ -135,7 +148,6 @@ src/
 ## Ngoài phạm vi hiện tại
 
 - Multi-select / shift-click
-- Undo / redo (history store đã có stub nhưng chưa wire)
 - Linked node (data-list pattern cho ProductSlider advanced)
 - Save / load page state (hiện chỉ in-memory)
 - Inline text editing (Heading hiện chỉ đọc)

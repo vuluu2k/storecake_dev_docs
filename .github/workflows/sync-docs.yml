@@ -1,0 +1,92 @@
+name: Sync docs to website folder
+
+# Mục tiêu: source authoring (`storecake-builder/`, `storecake-api/`, `webcake-api/`)
+# và mirror Docusaurus (`website/docs/`) phải LUÔN giống nhau.
+#
+# Behavior:
+# - PR: chạy sync, nếu có drift → fail check (yêu cầu contributor sync trước
+#   khi merge).
+# - push tới `main`: chạy sync, nếu có drift → auto-commit ngược lại main với
+#   message `[bot] sync docs`. Skip CI loop bằng cách bỏ qua chính commit đó
+#   trong `paths-ignore` của trigger.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'storecake-builder/**'
+      - 'storecake-api/**'
+      - 'webcake-api/**'
+      - 'git-flow.md'
+      - 'setup.md'
+      - 'scripts/sync-docs.mjs'
+      - '.github/workflows/sync-docs.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'storecake-builder/**'
+      - 'storecake-api/**'
+      - 'webcake-api/**'
+      - 'git-flow.md'
+      - 'setup.md'
+      - 'website/docs/**'
+      - 'scripts/sync-docs.mjs'
+
+permissions:
+  contents: write
+
+concurrency:
+  # Tránh 2 lần auto-commit chồng lên nhau khi push liên tiếp vào main.
+  group: sync-docs-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # Skip nếu chính commit là do bot này tạo — tránh loop vô hạn.
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Cần token có quyền push để auto-commit trên main.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run sync
+        run: node scripts/sync-docs.mjs --verbose
+
+      - name: Detect drift
+        id: drift
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            echo "--- drift detected ---"
+            git status --short
+            git diff --stat
+          else
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "no drift — source and website are in sync"
+          fi
+
+      # Pull request: fail nếu có drift để contributor phải sync trước khi merge.
+      - name: Fail PR if drift
+        if: github.event_name == 'pull_request' && steps.drift.outputs.drift == 'true'
+        run: |
+          echo "::error::Docs source và website/docs/ không đồng bộ. Chạy 'node scripts/sync-docs.mjs' rồi commit lại."
+          exit 1
+
+      # Push to main: auto-commit để đảm bảo "lúc nào cũng giống nhau".
+      - name: Commit sync changes
+        if: github.event_name == 'push' && steps.drift.outputs.drift == 'true'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A website/docs storecake-builder storecake-api webcake-api git-flow.md setup.md 2>/dev/null || true
+          git commit -m "[bot] sync docs to website/docs"
+          git push origin HEAD:main

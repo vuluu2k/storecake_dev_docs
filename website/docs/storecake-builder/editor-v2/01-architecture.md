@@ -5,7 +5,7 @@ title: 01 — Architecture
 
 # 01 — Architecture
 
-Kiến trúc tổng thể, data model, 3 stores, registry pattern, mixin layering, cách tránh import cycle.
+Kiến trúc tổng thể, data model, 4 stores (node/dnd/ui/history), registry pattern, mixin layering, cách tránh import cycle.
 
 ## 1. Bức tranh lớn
 
@@ -28,22 +28,25 @@ Kiến trúc tổng thể, data model, 3 stores, registry pattern, mixin layerin
 │    <EdgeOverlays />         ← padding/margin SVG strips        │
 │    <ElementToolbar />       ← floating toolbar trên selected   │
 └────────────────────────────────────────────────────────────────┘
-                    ↑                  ↑                ↑
-                    │                  │                │
-              ┌─────┴─────┐      ┌─────┴─────┐    ┌─────┴─────┐
-              │ NodeStore │      │  DndStore │    │  UIStore  │
-              │           │      │           │    │           │
-              │ nodes{}   │      │dragTarget │    │breakpoint │
-              │ events{}  │      │positioner │    │  Active   │
-              │ +query    │      │   shadow  │    │           │
-              └───────────┘      └───────────┘    └───────────┘
-                    ↑                  ↑
-                    └──────┬───────────┘
-                           │
-                  ┌────────┴──────────┐
-                  │     Positioner    │     Class, không phải Pinia
-                  │   (DOM analyzer)  │     dnd store tạo khi startCreate
-                  └───────────────────┘
+       ↑                ↑                ↑                ↑
+       │                │                │                │
+  ┌────┴────┐     ┌────┴────┐     ┌────┴────┐      ┌─────┴─────┐
+  │NodeStore│     │ DndStore│     │ UIStore │      │HistoryStore│
+  │         │     │         │     │         │      │           │
+  │ nodes{} │     │ target  │     │ breakpt │      │ timeline  │
+  │ events  │     │positioner│    │ Active  │      │ pointer   │
+  │ +query  │     │  shadow │     │         │      │ coalesce  │
+  │ _commit │ ───►│         │     │         │ ────►│  record   │
+  └─────────┘     └─────────┘     └─────────┘      └───────────┘
+       ▲               ▲                                  ▲
+       │               │                                  │
+       │       ┌───────┴────────┐               ┌─────────┴─────────┐
+       │       │   Positioner   │               │  PatchRecorder    │
+       │       │ (DOM analyzer) │               │ (fwd / inv ops)   │
+       │       │  class instance│               │  per _commit      │
+       │       └────────────────┘               └───────────────────┘
+       │                                                  │
+       └──────────────── undo()/redo() apply patches ─────┘
 ```
 
 ## 2. Data model
@@ -57,27 +60,25 @@ Mỗi node là một object trong `nodeStore.nodes` map:
   id: 'fs_abc12345',          // unique, gen tự động
   data: {
     type: 'flex-section',      // key tra registry → component + meta
-    props: {                   // base props — default, không theo breakpoint
-      padding: '20px 24px',
-      background: '#fff',
-    },
     parent: 'ROOT' | 'fs_xxx' | null,  // null chỉ với ROOT seed
     nodes: ['fb_yyy', 'fb_zzz'],       // children IDs theo thứ tự render
     isCanvas: true,            // có chấp nhận drop con không
     hidden: false,             // ẩn render
     custom: {},                // free-form per-element data
 
-    // ─── 3 NAMESPACE (thay cho single `props` cũ) ──────────────
-    style:    { padding: '20px 24px' },   // CSS visual, responsive
-    config:   {},                          // data per-bp opt-in (vd image src art-direction)
-    specials: { text: 'Hello' },           // base-only metadata (text, htmlId, productId, ...)
+    // ─── 3 NAMESPACE ─────────────────────────────────────────
+    style:    { padding: '32px 0px', '--node-width': 'fill' },  // CSS responsive
+    config:   { contentWidth: 'fill_container' },               // data per-bp opt-in
+    specials: { htmlTag: 'h2' },                                // base-only metadata
+    events:   [],                                               // base-only behaviors
+    bindings: [],                                               // base-only data refs
 
     responsive: {              // per-breakpoint overrides (text key)
-      laptop:  { style: { padding: '20px 32px' }, config: {} },
-      mobile:  { style: { padding: '20px 15px' }, config: {} },
+      desktop: { style: { '--layout-direction': 'horizontal' }, config: {} },
+      mobile:  { style: { '--layout-direction': 'vertical' },   config: {} },
     },
   },
-  dom: HTMLElement | null,     // tham chiếu DOM thật, set qua setDOM mounted/updated
+  dom: HTMLElement | null,     // tham chiếu DOM thật, set qua setDOM mounted/updated/markRaw
   events: {},                  // (unused) — node-level event handlers
 }
 ```
@@ -118,13 +119,15 @@ Khi factory tạo nội dung mới (chưa vào store), kết quả là **NodeTre
 
 Tree được `addNodeTree(tree, parentId, index)` merge vào store và re-parent gốc.
 
-## 3. Ba stores (Pinia Options API)
+## 3. Bốn stores (Pinia Options API)
 
 ### `useNodeStore` (`src/stores/editor_v2/node.js`)
 
 **State:**
 - `nodes: { [id]: Node }` — toàn bộ cây dưới dạng flat map
 - `events: { selected: [], hovered: null, dragged: [], indicator: null }`
+
+**Chokepoint:** `_commit(label, mutateFn, opts)` — wrap mọi mutation trong `$patch` + `PatchRecorder`, snapshot selection trước/sau, record vào history store. Xem [`10-history.md`](./10-history.md) cho chi tiết.
 
 **Action chính:**
 | Action | Mô tả |
@@ -134,14 +137,25 @@ Tree được `addNodeTree(tree, parentId, index)` merge vào store và re-paren
 | `move(nodeId, newParentId, newIndex)` | Re-parent, cycle-guard, auto-wrap, isRootOnly check |
 | `remove(nodeId)` | Xoá node + tất cả descendants |
 | `duplicate(nodeId)` | Deep-clone subtree với id mới, insert làm sibling kế |
-| `setDOM(id, el)` | Ghi DOM ref (markRaw để không reactive) |
-| `setSelected(id)` | Set selection (single-select hiện tại) |
-| `setIndicator(indicator)` | Cập nhật indicator của drag session |
-| `changeStyle(id, patch, opts?)` | Ghi style — default current bp, override `opts.breakpoint: 'base'\|key` |
-| `changeConfig(id, patch, opts?)` | Ghi config — default base, opt-in per-bp |
-| `changeSpecials(id, patch)` | Ghi specials — luôn base |
-| `resetStyle/Config/Specials(id, keys, opts?)` | Xoá key khỏi target slot |
-| `applyTrait(nodeId, field, value, opts?)` | Generic dispatcher — route theo `field.target` |
+| `setDOM(id, el)` | Ghi DOM ref (markRaw để không reactive) — KHÔNG qua `_commit` |
+| `setSelected(id)` | Set selection (single-select hiện tại) — KHÔNG qua `_commit` |
+| `setIndicator(indicator)` | Cập nhật indicator của drag session — KHÔNG qua `_commit` |
+| `changeStyle(id, patch, opts?)` | Ghi style — route per-key qua `defaultStyleSlot` policy; override `opts.breakpoint: 'base'\|key` |
+| `changeConfig(id, patch, opts?)` | Ghi config — route per-key qua `defaultConfigSlot` policy |
+| `changeSpecials(id, patch, opts?)` | Ghi specials — luôn base (không có per-breakpoint) |
+| `resetStyle/Config/Specials(id, keys, opts?)` | Xoá key khỏi target slot (force throttle = 0) |
+| `addEvent / updateEvent / removeEvent` | Append/merge/xóa entry trong `node.data.events` array |
+| `addBinding / updateBinding / removeBinding` | Tương tự cho `node.data.bindings` |
+| `serialize() / hydrate(payload)` | Snapshot ⇄ replace toàn bộ state (hydrate clear history) |
+
+**Internal (`_` prefix):**
+| Helper | Mô tả |
+|---|---|
+| `_commit(label, mutateFn, opts)` | Wrap mutation + record history; `opts: { silent, key, throttleMs }` |
+| `_writeNs(id, ns, patch, slot, opts)` | Single-slot write (ép breakpoint cụ thể hoặc base) |
+| `_writeByPolicy(id, ns, patch, slotForKey, bp, opts)` | Chia patch theo per-key responsive policy → multiple `_writeNs` |
+| `_resetNs(method, id, keys, opts)` | Build `{key: undefined}` patch + ép throttle = 0 |
+| `_addEntry / _updateEntry / _removeEntry` | Generic array-namespace mutation cho events/bindings |
 
 **Getter:**
 - `query` — mirror craft.js API: `query.node(id).get() / .isCanvas() / .isDroppable() / .ancestors() / .descendants()`. Positioner đọc qua đây.
@@ -169,12 +183,30 @@ Tree được `addNodeTree(tree, parentId, index)` merge vào store và re-paren
 ### `useUIStore` (`src/stores/editor_v2/editor.js`)
 
 **State:**
-- `breakpointActive: 1440` (px)
+- `breakpointActive: 'desktop'` (text key — `'desktop' | 'laptop' | 'tablet' | 'mobile'`)
 - `leftSidebarKeyActive: 'elements__layout'` v.v.
 
 **Action:**
 - `setBreakpoint(bp)` — gọi từ Header WkTabs
 - `setLeftSidebarKey(key)` — chuyển panel sidebar
+
+### `useHistoryStore` (`src/stores/editor_v2/history.js`)
+
+**State:**
+- `timeline: [{ patches, inversePatches, label, key, ts, selectedBefore, selectedAfter }]`
+- `pointer: -1` — cursor entry hiện tại
+- `_silent: boolean` — set bởi `ignore()` để skip record
+- `_coalesce: { key, until } | null` — window đang mở để gộp entry cùng key
+
+**Action:**
+- `record(patches, inversePatches, label, opts)` — node store gọi qua `_commit`, không gọi tay
+- `undo() / redo()` — apply inverse/forward patches + restore selection + scrub DOM refs
+- `ignore(fn)` — chạy fn không record (nest-safe)
+- `clear()` — reset timeline + pointer + coalesce; gọi sau `hydrate`
+
+**Getter:** `canUndo`, `canRedo`, `nextUndoLabel`, `nextRedoLabel`.
+
+Chi tiết timeline, throttle/coalesce, patch op shape: xem [`10-history.md`](./10-history.md).
 
 ## 4. Registry pattern
 
@@ -188,12 +220,12 @@ Trước refactor:
 
 ### Sau refactor
 
-**Source of truth:** mỗi element folder tự khai báo `meta` trong file riêng. Registry tự lookup.
+**Source of truth:** mỗi element folder tự khai báo `meta` trong file riêng. Registry tự lookup, wrap factory với defaults, precompute allowedKeys + renderers.
 
 ```
 nodes/heading/
   ├── index.vue        ← component + factory (imports meta từ ./meta.js)
-  ├── meta.js          ← Pure data: type, label, traits, rules (NO Vue, NO @/)
+  ├── meta.js          ← Pure data: type, label, traits, rules, defaults (NO Vue, NO @/)
   └── ai.js            ← (optional) AI hints, lazy-loaded
 ```
 
@@ -201,10 +233,18 @@ nodes/heading/
 ```js
 // meta.js
 export const meta = {
-  type: 'heading',
-  label: 'Heading',
-  traits: [{ key: 'text', type: 'text', label: 'Text' }],
+  type: 'flex-block',
+  label: 'Block',
   rules: { isRootOnly: false },
+  defaults: {
+    style: { padding: '0px', '--node-width': 'fill' },
+    config: { contentWidth: 'fill_container' },
+    responsive: { mobile: { '--layout-direction': 'vertical' } },  // flat shape OK
+  },
+  traits: {
+    general:  [{ key: 'layout', attributes: ['width_select', 'padding'] }],
+    advanced: [{ key: 'spacing', attributes: ['padding_margin'] }],
+  },
 }
 
 // index.vue
@@ -214,9 +254,15 @@ import { createNode } from '@/composable/editor_v2/createNode'
 export default { ... }
 export const meta = {
   ...baseMeta,
-  factory: (overrides) => createNode({ type: 'heading', ... }),
+  // Factory return minimal node — registry wrap để fill defaults missing keys.
+  factory: (overrides) => createNode({ type: 'flex-block', style: overrides.style || {} }),
 }
 ```
+
+**`registerElement(meta, component)` làm 3 việc:**
+1. Wrap `meta.factory` — sau khi factory return, merge `defaults.style/config/specials/responsive` vào node missing keys (factory/overrides win).
+2. Precompute `allowedKeys` — walk `meta.traits.general + .advanced`, lookup `DEFINITIONS_DATA`, build `{style: Set, config: Set, specials: Set}` writeKey allowlist. Store's `writeNamespaceWithRec` đọc set này để drop key lạ.
+3. Precompute `renderers` — walk traits, lookup `STYLE_RENDERERS[key]`, build ordered array. `nodeBase.commonStyleData` lặp array này để compose CSS — không re-walk traits per render.
 
 **Bootstrap:** `registerElements.js` chạy `import.meta.glob('nodes/*/index.vue', { eager: true })`, lặp qua từng module, gọi `registerElement(meta, default)`.
 
@@ -225,10 +271,11 @@ export const meta = {
 |---|---|
 | `NodeRenderer` | `getDef(type).component` để render |
 | `Positioner` | `isRootOnlyType(type)` để biết force ROOT khi drag |
-| `node.js` store | `isRootOnlyType(type)` cho rule isDroppable + auto-wrap |
-| `nodeFactory` | `factoryFor(type, props)` cho `buildElement` |
-| Sidebar (tương lai) | `listSidebar()` để render danh sách element |
-| Trait panel (tương lai) | `getDef(type).traits` để render form |
+| `node.js` store | `isRootOnlyType(type)` cho rule isDroppable + auto-wrap; `getAllowedKeys(type, ns)` cho whitelist trong `writeNamespaceWithRec` |
+| `nodeFactory` | `factoryFor(type, props)` cho `buildElement` (factory đã wrap) |
+| `nodeBase.commonStyleData` | `getDef(type).renderers` để compose CSS |
+| Sidebar | `listSidebar()` để render danh sách element |
+| Trait panel | `getDef(type).traits` để render form |
 
 ### Tại sao tách `registry.js` và `registerElements.js`?
 
@@ -293,15 +340,32 @@ computed: {
   mergedStyle             // cascade qua mergeNamespace (style ns)
   mergedConfig            // cascade qua mergeNamespace (config ns)
   mergedSpecials          // base only — node.data.specials
+  commonStyleData         // Object.assign({}, ...def.renderers.map(r => r(node))) — precomputed CSS
+  nodeAttrs               // { data-node-id, data-node-type, draggable: 'true' }
+  nodeClassMap            // { 'wk-node-selected': isSelected, hidden: mergedConfig.hidden }
+  nodeListenersBase       // { click: onClick }
 }
-lifecycle: mounted / updated / beforeUnmount → setDOM
+lifecycle: mounted / updated / beforeUnmount → setDOM (markRaw)
 methods: {
-  onClick                 // setSelected(nodeId)
+  onClick                 // stopPropagation + setSelected(nodeId)
   changeStyle(patch, opts)    // forward → nodeStore.changeStyle
   changeConfig(patch, opts)   // forward → nodeStore.changeConfig
   changeSpecials(patch)       // forward → nodeStore.changeSpecials
 }
 ```
+
+**Template root convention:**
+```vue
+<template>
+  <div ref="root" v-bind="nodeAttrs" :class="nodeClassMap"
+       :style="{ ...commonStyleData, /* element-specific overrides last */ }"
+       v-on="{ ...nodeListenersBase, ...dragListeners, ...dropListeners }">
+    ...
+  </div>
+</template>
+```
+
+`commonStyleData` đi TRƯỚC element-specific style — element giữ final word cho layout vars, gap, padding override.
 
 ### `nodeContainer` cung cấp thêm
 
