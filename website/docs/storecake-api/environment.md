@@ -3,151 +3,151 @@ sidebar_position: 9
 title: Biến môi trường
 ---
 
-# Biến môi trường
+# Environment variables
 
-`builderx_api` đọc cấu hình runtime ở `config/env_config.exs`. Tệp mẫu cho local là `.dev.env`.
+`builderx_api` đọc cấu hình runtime ở `config/env_config.exs` (qua `System.get_env/1`). File mẫu để dev local: `.dev.env` (đã commit, không chứa secret prod).
 
-## Quy ước
+Khi chạy bằng Docker, các biến này được nạp qua `env_file` trong `docker-compose.yml`. Khi chạy native, copy `.dev.env` → `.env` và load thủ công (`set -a; source .env; set +a`).
 
-- Khi chạy Docker, biến được nạp qua `env_file` trong `docker-compose.yml`.
-- Khi chạy native: `set -a; source .env; set +a` trước khi `mix phx.server`.
-- **Không** commit secret prod. `.dev.env` chỉ chứa giá trị dev nội bộ.
-- Khi thêm biến mới:
-  1. Đọc trong `config/env_config.exs`.
-  2. Bổ sung vào bảng dưới đây.
-  3. Phối hợp với ops để cập nhật biến vào Ansible group vars.
+## Quy tắc chung
 
-## Bảng tham chiếu
+* **Không** commit secret prod. `.dev.env` chỉ chứa key dùng cho stack local nội bộ.
+* Khi thêm biến mới, cập nhật:
+  1. `config/env_config.exs`.
+  2. Bảng dưới đây.
+  3. Ansible group vars (do ops team quản lý).
 
-### Lõi
+## Bảng biến
 
-| Khoá | Mục đích |
-| --- | --- |
-| `MIX_ENV` | `dev` / `prod` / `test`. |
-| `JWT_KEY` | Secret ký JWT cho user / admin. |
-| `SECRET_KEY_BASE` | Secret cho Phoenix endpoint (prod inject qua vault). |
-| `PHX_HOST` | Host của Phoenix endpoint (prod). |
-| `PORT` | Port HTTP (prod, mặc định 4000). |
+### Core
+
+| Key             | Mô tả                                         |
+| --------------- | --------------------------------------------- |
+| `MIX_ENV`       | `dev` / `prod` / `test`.                      |
+| `JWT_KEY`       | Secret ký JWT user/admin.                      |
+| `SECRET_KEY_BASE` | Phoenix endpoint secret (prod set qua secret).|
+| `PHX_HOST`      | Host Phoenix endpoint (prod).                 |
+| `PORT`          | Port HTTP (prod, default 4000).               |
 
 ### Database
 
-| Khoá | Mục đích |
-| --- | --- |
-| `DATABASE_URL` | Postgres URL cho `BuilderxApi.Repo`. |
-| `CITUS_DATABASE_URL` | Postgres URL cho `BuilderxApi.Citus`. |
-| `MONGO_URI` | URI MongoDB. |
-| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` | Redis. |
-| `ELASTIC_HOST` / `ELASTIC_PORT` / `ELASTIC_USERNAME` / `ELASTIC_PASSWORD` | Elasticsearch. |
-| `QUESTDB_HOST` / `QUESTDB_HTTP_PORT` / `QUESTDB_ILP_PORT` | QuestDB. |
+| Key                          | Mô tả                                  |
+| ---------------------------- | -------------------------------------- |
+| `DATABASE_URL`               | Postgres URL cho `BuilderxApi.Repo`.   |
+| `CITUS_DATABASE_URL`         | Postgres URL cho `BuilderxApi.Citus`.  |
+| `MONGO_URI`                  | URI MongoDB.                           |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB` | Cấu hình Redis.    |
+| `ELASTIC_HOST` / `ELASTIC_PORT` / `ELASTIC_USERNAME` / `ELASTIC_PASSWORD` | Elastic. |
+| `QUESTDB_HOST` / `QUESTDB_HTTP_PORT` / `QUESTDB_ILP_PORT` | QuestDB.          |
 
 ### RabbitMQ
 
-| Khoá | Mục đích |
-| --- | --- |
-| `R_HOST` | Host của Rabbit. |
-| `R_PORT` | Cổng AMQP (5672). |
-| `R_USERNAME` | User. |
-| `R_PASSWORD` | Password. |
-| `R_VIRTUAL_HOST` | vhost (ví dụ `v1`). |
+| Key                | Mô tả                              |
+| ------------------ | ---------------------------------- |
+| `R_HOST`           | Hostname Rabbit.                   |
+| `R_PORT`           | Port AMQP (5672).                  |
+| `R_USERNAME`       | User.                              |
+| `R_PASSWORD`       | Password.                          |
+| `R_VIRTUAL_HOST`   | vhost (vd `v1`).                   |
 
 ### Kafka
 
-| Khoá | Mục đích |
-| --- | --- |
-| `KAFKA1_HOST` | Host broker 1. |
-| `KAFKA1_PORT` | Cổng broker 1. |
-| `KAFKA2_*` | Broker bổ sung khi cluster lớn. |
+| Key             | Mô tả                          |
+| --------------- | ------------------------------ |
+| `KAFKA1_HOST`   | Host broker 1.                 |
+| `KAFKA1_PORT`   | Port broker 1.                 |
+| (`KAFKA2_*` …)  | Broker khác nếu cluster lớn.    |
 
 ### AWS S3
 
-| Khoá | Mục đích |
-| --- | --- |
-| `AWS_ACCESS_KEY_ID` | Access key. |
-| `AWS_SECRET_ACCESS_KEY` | Secret. |
-| `AWS_REGION` | Region. |
-| `S3_BUCKET_PUBLIC` | Bucket asset công khai. |
-| `S3_BUCKET_PRIVATE` | Bucket private (CMS, hoá đơn). |
+| Key                     | Mô tả                               |
+| ----------------------- | ----------------------------------- |
+| `AWS_ACCESS_KEY_ID`     | Access key.                         |
+| `AWS_SECRET_ACCESS_KEY` | Secret.                             |
+| `AWS_REGION`            | Region.                             |
+| `S3_BUCKET_PUBLIC`      | Bucket public asset.                |
+| `S3_BUCKET_PRIVATE`     | Bucket private (hoá đơn, CMS file). |
 
-### Pancake và OAuth
+### Pancake & OAuth
 
-| Khoá | Mục đích |
-| --- | --- |
-| `PANCAKEID_CLIENT_ID` | OAuth client của Pancake ID. |
-| `PANCAKEID_CLIENT_SECRET` | Secret OAuth Pancake ID. |
-| `PANCAKE_SECRET_KEY` | Secret nội bộ để ký payload Pancake. |
-| `AUTH_URL` | URL Pancake auth (`https://account.pancake.vn`). |
-| `GG_CLIENT_ID` / `GG_SECRET_KEY` / `GG_CALLBACK_URL` | OAuth Google (login). |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET_KEY` / `GOOGLE_API_KEY` | Google API (Drive, Sheets,…). |
-| `FACEBOOK_APP_ID` / `FACEBOOK_SECRET_KEY` | Facebook login + Catalog. |
-| `BOTCAKE_*` | Tích hợp Botcake. |
-| `INSTAGRAM_CLIENT_ID` / `_SECRET_KEY` | Instagram. |
-| `DROPBOX_APP_KEY` / `DROPBOX_APP_SECRET` | Dropbox. |
-| `DRIBBBLE_CLIENT_ID` / `_SECRET_KEY` | Dribbble. |
-| `VIMEO_CLIENT_ID` / `_SECRET_KEY` | Vimeo. |
-| `DEVIANT_ART_CLIENT_ID` / `_SECRET_KEY` | DeviantArt. |
-| `SLACK_CLIENT_ID` / `SLACK_SECRET_ID` | Slack. |
-| `FLATICON_API_KEY` | Picker Flaticon. |
-| `RAPID_API_KEY` | RapidAPI. |
-| `STORECAKE_SECRET_KEY` | Secret nội bộ Storecake (ký URL). |
-| `CAPTCHA_SECRET_KEY` | reCAPTCHA. |
+| Key                          | Mô tả                                              |
+| ---------------------------- | -------------------------------------------------- |
+| `PANCAKEID_CLIENT_ID`        | OAuth client Pancake ID.                           |
+| `PANCAKEID_CLIENT_SECRET`    | Secret OAuth Pancake ID.                           |
+| `PANCAKE_SECRET_KEY`         | Secret nội bộ (sign payload Pancake).              |
+| `AUTH_URL`                   | URL Pancake auth (`https://account.pancake.vn`).    |
+| `GG_CLIENT_ID` / `GG_SECRET_KEY` / `GG_CALLBACK_URL` | OAuth Google (login).             |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET_KEY` / `GOOGLE_API_KEY` | Google API (Drive,…). |
+| `FACEBOOK_APP_ID` / `FACEBOOK_SECRET_KEY` | Facebook login + catalog.                   |
+| `BOTCAKE_*`                  | Tích hợp Botcake.                                  |
+| `INSTAGRAM_CLIENT_ID` / `_SECRET_KEY` | Instagram graph.                          |
+| `DROPBOX_APP_KEY` / `DROPBOX_APP_SECRET` | Dropbox.                                |
+| `DRIBBBLE_CLIENT_ID` / `DRIBBBLE_CLIENT_SECRET_KEY` | Dribbble.                  |
+| `VIMEO_CLIENT_ID` / `VIMEO_CLIENT_SECRET_KEY` | Vimeo.                            |
+| `DEVIANT_ART_CLIENT_ID` / `DEVIANT_ART_CLIENT_SECRET_KEY` | DeviantArt.            |
+| `SLACK_CLIENT_ID` / `SLACK_SECRET_ID` | Slack notification.                       |
+| `FLATICON_API_KEY`           | Flaticon icon picker.                              |
+| `RAPID_API_KEY`              | RapidAPI (provider tổng hợp).                       |
+| `STORECAKE_SECRET_KEY`       | Secret nội bộ Storecake (sign URL).                |
+| `CAPTCHA_SECRET_KEY`         | reCAPTCHA secret.                                  |
 
 ### Stripe
 
-| Khoá | Mục đích |
-| --- | --- |
-| `STRIPE_SK` | Stripe secret key. |
-| `STRIPE_WEBHOOK_SECRET_KEY` | Verify webhook. |
+| Key                          | Mô tả                                       |
+| ---------------------------- | ------------------------------------------- |
+| `STRIPE_SK`                  | Secret key (server).                        |
+| `STRIPE_WEBHOOK_SECRET_KEY`  | Verify webhook.                             |
 
 ### Google Ads
 
-| Khoá | Mục đích |
-| --- | --- |
-| `DEVELOPER_TOKEN` | Google Ads developer token. |
-| `GOOGLE_ADS_MANAGE_ACCOUNT` | ID manager account (MCC). |
-| `MERCHANT_ID` | Google Merchant ID. |
+| Key                          | Mô tả                                |
+| ---------------------------- | ------------------------------------ |
+| `DEVELOPER_TOKEN`            | Google Ads developer token.          |
+| `GOOGLE_ADS_MANAGE_ACCOUNT`  | Manager account id (MCC).            |
+| `MERCHANT_ID`                | Google Merchant id.                  |
 
-### Vận chuyển
+### Vận chuyển / B2C
 
-| Khoá | Mục đích |
-| --- | --- |
-| `B2C_TOKEN_GHTK` | Token GHTK. |
+| Key                          | Mô tả                          |
+| ---------------------------- | ------------------------------ |
+| `B2C_TOKEN_GHTK`             | Token GHTK B2C.                |
 
 ### Email
 
-| Khoá | Mục đích |
-| --- | --- |
-| `EMAIL_USERNAME` | User SMTP. |
-| `EMAIL_PASSWORD` | Password / app password SMTP. |
-| `SMTP_HOST` / `SMTP_PORT` | Override host/port SMTP nếu cần. |
+| Key                | Mô tả                                       |
+| ------------------ | ------------------------------------------- |
+| `EMAIL_USERNAME`   | Tài khoản SMTP.                              |
+| `EMAIL_PASSWORD`   | Mật khẩu/app password SMTP.                 |
+| `SMTP_HOST` / `SMTP_PORT` | (nếu khác mặc định) Cấu hình SMTP.   |
 
-### Cầu nối WebCMS / landing_page_backend
+### WebCMS / liên kết landing_page_backend
 
-| Khoá | Mục đích |
-| --- | --- |
-| `WEBCMS_API` | Endpoint của WebCMS (`webcms_app:4000`). |
-| `WEBCMS_SECRET_KEY` | Secret RPC với WebCMS. |
-| `BUILDERX_SPA_URL` | URL của `builderx_spa` (CORS, redirect). |
+| Key                          | Mô tả                                  |
+| ---------------------------- | -------------------------------------- |
+| `WEBCMS_API`                 | Endpoint webcms (`webcms_app:4000`).   |
+| `WEBCMS_SECRET_KEY`          | Secret RPC với webcms.                 |
+| `BUILDERX_SPA_URL`           | URL `builderx_spa` (CORS, redirect).   |
 
-### Khác
+### Misc
 
-| Khoá | Mục đích |
-| --- | --- |
-| `WDS_SOCKET_HOST` / `WDS_SOCKET_PORT` | Socket cho Phoenix LiveReload. |
-| `SENTRY_DSN` / `SENTRY_ENV` | Sentry. |
+| Key                          | Mô tả                                       |
+| ---------------------------- | ------------------------------------------- |
+| `WDS_SOCKET_HOST` / `WDS_SOCKET_PORT` | Phoenix LiveReload socket.         |
+| `SENTRY_DSN` / `SENTRY_ENV`  | Sentry.                                     |
 
-## Mẹo
+## Tips
 
-- Xem giá trị trong IEx: `System.get_env("REDIS_HOST")`.
-- Đổi `.env` cần restart container — `Application` chỉ đọc lúc khởi động.
-- Secret prod nên đọc bằng `Application.fetch_env!(:builderx_api, :stripe_sk)` để fail-fast khi thiếu.
+* Trong iex có thể đọc nhanh ENV: `System.get_env("REDIS_HOST")`.
+* Khi đổi `.env`, **restart** container (vì `Application` chỉ đọc lúc start).
+* Với secret thật (prod): không log, không in ra console; dùng `Application.fetch_env!(:builderx_api, :stripe_sk)` để fail-fast nếu thiếu.
 
 ## Kiểm tra nhanh
 
 ```bash
 make bash
-# bên trong container
+# trong container
 echo $JWT_KEY
 echo $R_HOST
 ```
 
-Nếu thiếu biến bắt buộc, service sẽ crash khi boot (Sentry, Stripe,…). Đọc log để biết khoá nào thiếu.
+Nếu thiếu biến → service sẽ crash khi start (Sentry, Stripe…). Đọc log container để biết key nào missing.

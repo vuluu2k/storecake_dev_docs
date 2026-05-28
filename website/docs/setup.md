@@ -3,46 +3,66 @@ sidebar_position: 2
 title: Cài đặt môi trường
 ---
 
-# Cài đặt môi trường
+# Setup
 
-Danh sách kiểm tra ngắn để chuẩn bị một máy tính mới sẵn sàng làm việc trên ba repository Storecake. Bước cài đặt riêng cho từng dự án nằm trong từng mục dự án — trang này chỉ liệt kê những thứ chung mà mọi người đều cần.
+Bước chuẩn bị môi trường dev chung cho cả 3 repo (`builderx_spa`, `builderx_api`, `landing_page_backend`). Mỗi repo còn có file Installation riêng để hướng dẫn chi tiết hơn ở section của nó.
 
-## Công cụ bắt buộc
+## 1. Yêu cầu hệ thống
 
-| Công cụ | Mục đích | Phiên bản khuyến nghị |
-| --- | --- | --- |
-| **Git** | Quản lý mã nguồn | Bản stable mới nhất |
-| **Docker Desktop** (hoặc OrbStack) | Chạy backend và stack local | Bản stable mới nhất |
-| **Node.js** | builderx_spa và frontend assets | 18 LTS trở lên |
-| **Elixir / Erlang** | Tùy chọn — phát triển backend không dùng Docker | Elixir 1.12.x · OTP 24 |
-| **Make** | Task runner mà mọi repo đều dùng | Đã có sẵn trên macOS / Linux |
-| **VS Code** | Editor được khuyến nghị (xem danh sách extension trong từng dự án) | Bản stable mới nhất |
+| Tool              | Phiên bản gợi ý           | Ghi chú                                                |
+| ----------------- | ------------------------- | ------------------------------------------------------ |
+| macOS / Linux     | -                         | Windows nên dùng WSL2 vì cả 2 backend đều dùng Docker. |
+| Docker Desktop    | >= 24                     | Bật `Use Rosetta` nếu là Mac Apple Silicon.            |
+| Docker Compose    | v2 (built-in `docker compose`) | Một vài Makefile cũ vẫn gọi `docker-compose` (v1).|
+| Git               | >= 2.30                   | Cấu hình SSH với GitHub.                               |
+| Node.js           | 16.x (LTS) cho `builderx_spa`; 14+ cho phần `assets/` của 2 backend | Khuyến nghị dùng `nvm`. |
+| npm / yarn        | npm 8+ hoặc yarn classic  | Repo `builderx_spa` đã commit `package-lock.json` → ưu tiên `npm`. |
+| Elixir            | 1.12.2                    | Chỉ cần khi muốn chạy native (không qua Docker).       |
+| Erlang/OTP        | 24+                       | Bundle theo Elixir.                                    |
+| Make              | bất kỳ                    | Dùng cho các target `make dev`, `make bash`, ...       |
+| Ansible (optional)| 2.10+                     | Chỉ cần khi deploy backend.                            |
 
-> Phần lớn anh em trong team chạy backend trong Docker và SPA chạy trực tiếp trên máy. Bạn chỉ cần cài Elixir native nếu muốn mở IEx shell hoặc chạy `mix task` mà không vào container.
+## 2. Quyền truy cập
 
-## SSH và quyền truy cập GitHub
+1. Được add vào org GitHub `pancake-vn` để clone các repo private.
+2. SSH key đã đăng ký GitHub:
 
-1. Tạo SSH key (`ssh-keygen -t ed25519`) và thêm vào tài khoản GitHub.
-2. Kiểm tra truy cập: `ssh -T git@github.com`.
-3. Đảm bảo bạn đã được mời vào tổ chức `pancake-vn` — nhắn maintainer nếu chưa thấy các repository.
+   ```bash
+   ssh -T git@github.com
+   ```
+3. Token / secret cho service ngoài (Sentry, SMTP, AWS, Kafka cluster…): nhận từ team lead, đưa vào `.env` của repo tương ứng.
 
-## Cấu hình Git nên có
+## 3. Cấu trúc thư mục đề nghị
 
-Đặt thông tin định danh:
+Đặt cả 3 repo dưới cùng một parent để symlink (nhất là `builderx_spa/builderx_api -> ../builderx_api`) hoạt động:
 
-```bash
-git config --global user.name "Tên của bạn"
-git config --global user.email "ban@example.com"
+```
+~/web_cake/
+├── builderx_spa/
+├── builderx_api/
+└── landing_page_backend/
 ```
 
-Bật rebase khi pull và tự dọn ref cũ khi fetch:
+## 4. Chuẩn bị `/etc/hosts`
 
-```bash
-git config --global pull.rebase true
-git config --global fetch.prune true
+Một số luồng (subdomain, oauth callback) cần hostname:
+
+```
+127.0.0.1   storecake.local
+127.0.0.1   admin.storecake.local
+127.0.0.1   webcake.local
+127.0.0.1   *.webcake.local        # với CDN/landing publish
 ```
 
-## Bước tiếp theo
+> macOS không match wildcard trong `/etc/hosts` – nếu cần wildcard hãy dùng `dnsmasq`.
 
-- Đọc [Quy trình Git](./git-flow.md) để nắm quy ước branching, commit và review.
-- Chọn dự án bạn sẽ làm và đi theo trang **Cài đặt** của dự án đó.
+## 5. Bước tiếp theo theo từng repo
+
+* `builderx_spa` → xem [Installation](installation.md) ở section Storecake Builder.
+* `builderx_api` → xem [Installation](installation-1.md) ở section Storecake Api.
+* `landing_page_backend` → xem [Installation](webcake-api/installation.md) ở section Webcake api.
+
+Sau khi từng repo chạy được, tham chiếu thêm:
+
+* [Git flow](git-flow.md) – branching, commit convention.
+* [Extension and rules](extension-and-rules.md) – cấu hình VSCode, ESLint, Husky, Tailwind.

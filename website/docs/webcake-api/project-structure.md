@@ -3,28 +3,28 @@ sidebar_position: 3
 title: Cấu trúc dự án
 ---
 
-# Cấu trúc dự án
+# Project structure
 
-Bản đồ thư mục của `landing_page_backend`.
+Bản đồ thư mục `landing_page_backend`.
 
-```text
+```
 landing_page_backend/
 ├── lib/
 │   ├── landing_page/           # ① Domain
-│   ├── landing_page_web/       # ② Lớp web
-│   ├── workers/                # Worker Oban
-│   ├── oban/                   # Cấu hình + mở rộng Oban
-│   ├── queue/                  # Abstraction queue
-│   ├── rabbit/                 # Producer / consumer AMQP
-│   ├── event_streaming/        # Producer / consumer Kafka
+│   ├── landing_page_web/       # ② Web layer
+│   ├── workers/                # Oban workers
+│   ├── oban/                   # Oban config + extension
+│   ├── queue/                  # Queue helper abstraction
+│   ├── rabbit/                 # AMQP producer/consumer
+│   ├── event_streaming/        # Kafka producer/consumer
 │   ├── changes_log/            # Audit log
-│   ├── outbox/                 # Pattern Outbox
-│   ├── passive/                # Tiến trình giám sát chạy dài
-│   ├── questdb/                # Client time-series
-│   ├── access/                 # Helper ACL
-│   ├── assets/                 # Helper asset cấp compile (không phải FE)
-│   ├── dynamic_app.ex          # Supervisor động (đa tenant)
-│   ├── prod_dynamic_app.ex     # Biến thể cho prod
+│   ├── outbox/                 # Outbox pattern
+│   ├── passive/                # Long-running supervised
+│   ├── questdb/                # Time-series client
+│   ├── access/                 # ACL helpers
+│   ├── assets/                 # Compile-time asset utils (not FE)
+│   ├── dynamic_app.ex          # Dynamic supervisor (multi-tenant)
+│   ├── prod_dynamic_app.ex     # Variant cho prod
 │   ├── application.ex
 │   ├── repo.ex                 # Ecto Repo
 │   ├── manage.ex
@@ -38,94 +38,95 @@ landing_page_backend/
 │   ├── redis.ex / redis_pubsub.ex / redlock.ex
 │   ├── request.ex / run.ex
 │   ├── aws_s3.ex
+│   ├── landing_page_web.ex / landing_page.ex
 │   └── …
-├── assets/                     # Frontend nội bộ (Vue 3 + Webpack)
-├── config/                     # Cấu hình Phoenix
+├── assets/                     # FE nội bộ (Vue 3 + Webpack)
+├── config/                     # Phoenix config
 ├── priv/                       # Migration / static / gettext
 ├── replica/                    # Script logical replication
 ├── data/                       # Dataset lớn
 ├── ansible/                    # Playbook deploy
 ├── test/                       # Test
-├── w_external_command/         # Worker external
+├── w_external_command/         # Worker chạy external command
 ├── docker-compose.yml / docker-compose-services.yml
 ├── Dockerfile
 ├── Makefile
 ├── add_verified_domain.sh
 ├── country_data.json
 ├── mix.exs / mix.lock
-└── get-pip.py                  # Giữ lại cho tooling Python legacy
+└── get-pip.py                  # Lưu lại để build python tools (deprecated)
 ```
 
 ## `lib/landing_page/`
 
-### Tài khoản và tổ chức
+### Account & Tổ chức
 
-- `accounts/`, `organizations/`, `permissions/`, `access/`
-- `partner_services/`
+* `accounts/`, `organizations/`, `permissions/`, `access/`
+* `partner_services/`
 
-### Page builder và nội dung
+### Page builder & Content
 
-- `pages/`, `global_sections/`, `global_tracks/`
-- `email_templates/`, `email_template_suport.ex`
-- `fonts/`, `images/`, `remove_bacgrounds/` (lưu ý chính tả)
-- `emoji/`, `abbreviation.ex`
+* `pages/`, `global_sections/`, `global_tracks/`
+* `email_templates/`, `email_template_suport.ex`
+* `fonts/`, `images/`, `remove_bacgrounds/` (lưu ý chính tả)
+* `emoji/`, `abbreviation.ex`
 
-### Form và dataset
+### Forms & Dataset
 
-- `form_data/`, `datasets/`
-- `forbidden_keywords/`, `detect_phone_number.ex`, `detect_scam.ex`
+* `form_data/`, `datasets/`
+* `forbidden_keywords/`, `detect_phone_number.ex`, `detect_scam.ex`
 
-### Thanh toán và thương mại
+### Payments & Commerce
 
-- `payments/`, `pos/`
-- `commissions/`, `afiliates/` (chính tả thiếu chữ "f")
-- `campaigns/`
+* `payments/`, `pos/`
+* `commissions/`, `afiliates/` (lưu ý chính tả "afiliates")
+* `campaigns/`
 
 ### Tích hợp
 
-- `intergrations/`, `integrations/` (cả hai tên đều có)
-- `shopify/`, `sapo/`, `haravan/`
-- `sheets/` (Google Sheets)
-- `partner_services/`
+* `intergrations/`, `integrations/` (folder trùng concept; cẩn thận khi tạo mới — dùng tên đang được compile)
+* `shopify/`, `sapo/`, `haravan/`
+* `sheets/` (Google Sheets)
+* `partner_services/`
 
-### Domain và short link
+### Domains & Short links
 
-- `domains/`, `domains_error.ex`
-- `short_links/`
+* `domains/`, `domains_error.ex`
+* `short_links/`
 
 ### Analytics
 
-- `analytics/`, `pixel_tracking/`, `statistics/`
-- `conversion_api.ex`
-- `event_streaming/` (Kafka)
-- `questdb/`
+* `analytics/`, `pixel_tracking/`, `statistics/`
+* `conversion_api.ex`
+* `event_streaming/` (Kafka)
+* `questdb/`
 
-### Địa lý và IP
+### Geo & IP
 
-- `geo/`, `ip2locations/`, `IpUtils.ex`
+* `geo/`, `ip2locations/`, `IpUtils.ex`
 
-### Audit và log
+### Audit / log
 
-- `changes_log/`, `outbox/`
-- `error_sync_logs` (khi có)
+* `changes_log/`, `outbox/`
+* `error_sync_logs` (tên file/folder thực tế khi triển khai)
 
-### Helper hạ tầng
+### Infra helpers
 
-- `repo.ex`, `custom_ecto.ex`, `ecto_middleware.ex`, `enum.ex`
-- `async.ex`, `cache.ex`, `collapser.ex`, `trace.ex`
-- `aws_s3.ex`, `image_resizer.ex`
-- `redis.ex`, `redis_pubsub.ex`, `redlock.ex`
-- `elastic.ex`, `elastic_index.ex`
-- `email.ex`, `mailer.ex`
-- `run.ex`, `manage.ex`
+* `repo.ex`, `custom_ecto.ex`, `ecto_middleware.ex`, `enum.ex`
+* `async.ex`, `cache.ex`, `collapser.ex`, `trace.ex`
+* `aws_s3.ex`, `image_resizer.ex`
+* `redis.ex`, `redis_pubsub.ex`, `redlock.ex`
+* `elastic.ex`, `elastic_index.ex`
+* `email.ex`, `mailer.ex`
+* `run.ex`, `manage.ex`
 
 ## `lib/landing_page_web/`
 
-```text
+```
 landing_page_web/
 ├── endpoint.ex
-├── router.ex                  # API admin + nội bộ
-├── public_api_router.ex       # Endpoint public
+├── router.ex                  # Admin & API nội bộ
+├── public_api_router.ex       # Public endpoint (landing publish, webhook)
 ├── controllers/
 │   ├── v1/
 │   ├── alert_controller.ex
@@ -143,42 +144,52 @@ landing_page_web/
 
 ## `priv/`
 
-- `repo/migrations/` — Migration.
-- `repo/seeds.exs` — Seed.
-- `static/` — Asset đã build.
-- `gettext/` — Bản dịch backend.
+* `repo/migrations/` – Migration chính.
+* `repo/seeds.exs` – Seed.
+* `static/` – Static asset đã build từ `assets/`.
+* `gettext/` – Locale backend.
 
 ## `assets/`
 
-Frontend nội bộ Vue 3 + Webpack 4, phục vụ một số trang admin render server-side. Khi sửa, chạy `cd assets && npm run watch`. Build cuối nằm trong `priv/static`.
+Vue 3 + Webpack 4 FE legacy phục vụ một số trang admin được Phoenix render. Khi dev sửa `assets/`, chạy `cd assets && npm run watch`; build cuối được nhúng vào `priv/static`.
 
 ## `replica/`
 
-Script cho logical replication Postgres:
+Script + config logical replication Postgres:
 
-- `pg_upgrade.sh` — Nâng version data.
-- `update_primary_config.sh` — Cập nhật cấu hình primary.
-- `init_pub.sh` — Tạo publication.
-- `init_data_replica.sh` — Sync data lần đầu sang replica.
-- `init_sub.sh` — Tạo subscription.
-- `add_table_replica.sh` — Thêm bảng vào publication.
+* `pg_upgrade.sh` – Upgrade data version.
+* `update_primary_config.sh` – Cập nhật config primary (pub).
+* `init_pub.sh` – Tạo publication.
+* `init_data_replica.sh` – Khởi tạo data replica.
+* `init_sub.sh` – Tạo subscription bên replica.
+* `add_table_replica.sh` – Add table vào replication.
 
-Gói qua các target Makefile (`make update-primary-config`, `make init-replica`, `make migrate-all`). Xem [Cơ sở dữ liệu + Replica](./database.md).
+Sử dụng qua Makefile (`make update-primary-config`, `make init-replica`, `make migrate-all`). Xem [Database & replica](database.md).
 
-## `workers/`
+## `workers/` (top-level lib)
 
-Mỗi tệp là một worker Oban hoặc consumer (xem [Worker (Oban) và Queue](./workers.md)).
+Mỗi file là module Oban worker hoặc consumer (xem [Workers & Queue](workers.md)).
 
 ## `ansible/`
 
-Playbook theo từng vai trò: `deploy_backend.yml`, `deploy_render.yml`, `deploy_builder.yml`, `deploy_editor.yml`, `deploy_cart.yml`, `deploy_tikpage.yml`, `deploy_worker.yml`, `deploy_staging.yaml`, kèm `hotfix/*.yaml`. Tách stack theo vai trò để rollout an toàn từng phần.
+Playbook deploy: `deploy_backend.yml`, `deploy_render.yml`, `deploy_builder.yml`, `deploy_editor.yml`, `deploy_cart.yml`, `deploy_tikpage.yml`, `deploy_worker.yml`, `deploy_staging.yaml`, `hotfix/*.yaml`.
 
-## Quy tắc thêm domain mới
+Mỗi playbook target một role khác nhau (backend API, render service, builder, editor, cart, tikpage,…). Triển khai chia nhỏ giúp rollout an toàn.
 
-1. Tạo `lib/landing_page/<domain>/`.
-2. Migration trong `priv/repo/migrations/`.
-3. Controller admin ở `lib/landing_page_web/controllers/v1/`.
-4. Endpoint public không cần auth → đăng ký trong `public_api_router.ex` qua controller riêng có pipeline `:public_api`.
+## Convention thêm mới
+
+1. Domain mới → folder `lib/landing_page/<domain>/`.
+2. Migration → `priv/repo/migrations/`.
+3. Controller `lib/landing_page_web/controllers/v1/<domain>_controller.ex`.
+4. Endpoint public (không auth) → đặt vào `public_api_router.ex`, qua `public_api_controller.ex` hoặc controller riêng có pipeline `:public_api`.
 5. Job nền → `lib/workers/<name>_worker.ex` (Oban).
-6. Event cross-domain → outbox + Rabbit / Kafka.
+6. Sự kiện cross-domain → outbox + Rabbit/Kafka.
 7. Test ở `test/landing_page/<domain>/`.
+
+## Tham chiếu
+
+* [Architecture](architecture.md)
+* [Database & replica](database.md)
+* [Workers & Queue](workers.md)
+* [Integrations](integrations.md)
+* [Environment](environment.md)

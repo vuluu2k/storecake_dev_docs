@@ -3,44 +3,46 @@ sidebar_position: 6
 title: Cơ sở dữ liệu
 ---
 
-# Cơ sở dữ liệu
+# Database
 
-`builderx_api` dùng nhiều hệ lưu trữ song song. Tài liệu này tập trung vào PostgreSQL + Citus (kho dữ liệu chính), kèm ghi chú nhanh cho Mongo / Redis / Elastic / QuestDB.
+`builderx_api` dùng nhiều hệ lưu trữ song song. Tài liệu này tập trung vào **PostgreSQL + Citus** (kho dữ liệu chính) và lưu ý quan trọng với MongoDB / Redis / Elastic / QuestDB.
 
-## Các hệ lưu trữ
+## Stack lưu trữ
 
-| Hệ | Vai trò | Module Elixir |
-| --- | --- | --- |
-| Postgres | Bảng global (account, plan, geo, system) | `BuilderxApi.Repo` |
-| Citus | Bảng shard theo `site_id` (sản phẩm, đơn hàng,…) | `BuilderxApi.Citus` |
-| Mongo | Document có cấu trúc động (form data, log lớn) | `lib/db_collections/` + `:mongodb_driver` |
-| Redis | Cache, lock, pubsub | `lib/redis/`, `:redix` |
-| Elastic | Full-text + filter | `lib/search/`, `:erlastic_search` |
-| QuestDB | Time-series (metric, conversion) | `lib/questdb/` |
-| S3 | Tài nguyên, file CMS | `:ex_aws_s3` |
+| Hệ          | Vai trò                                          | Module/Repo Elixir                            |
+| ----------- | ------------------------------------------------ | --------------------------------------------- |
+| Postgres    | Bảng global (account, plan, geo, system)         | `BuilderxApi.Repo`                            |
+| Citus       | Bảng shard theo `site_id` (product, order,…)     | `BuilderxApi.Citus`                           |
+| Mongo       | Document động (form data, log lớn)               | `lib/db_collections/` + `:mongodb_driver`     |
+| Redis       | Cache, lock, pubsub                              | `lib/redis/`, `:redix`                        |
+| Elastic     | Full-text search, filter                         | `lib/search/`, `:erlastic_search`             |
+| QuestDB     | Time-series (metric, conversion)                 | `lib/questdb/`                                |
+| S3          | Asset, file CMS                                  | `:ex_aws_s3`                                  |
 
-## Hai repo Ecto
+## Ecto Repos
 
-- `BuilderxApi.Repo` — Postgres thường, cho bảng không cần shard.
-- `BuilderxApi.Citus` — Postgres + extension Citus, cho bảng shard theo `site_id`.
+Project có **2 Repo Postgres**:
 
-Truyền `-r` để chọn repo:
+* `BuilderxApi.Repo` – Postgres thường, dùng cho bảng không cần shard.
+* `BuilderxApi.Citus` – Postgres + extension Citus, cho bảng shard theo `site_id`.
+
+Lệnh ecto cần truyền `-r` để chọn Repo khi cần:
 
 ```bash
 mix ecto.migrate -r BuilderxApi.Repo
 mix ecto.migrate -r BuilderxApi.Citus
 
-# Trong container
-make migrate    # đã trỏ Citus
+# hoặc trong container:
+make migrate    # đã chỉ Citus
 ```
 
-> Đặt migration mới vào thư mục tương ứng với repo đích để tránh nhầm lẫn.
+> Khi tạo migration mới, đặt vào folder migration tương ứng để không lẫn.
 
-## Citus — shard theo `site_id`
+## Citus – shard theo `site_id`
 
-- Bảng shard có cột `site_id` (UUID) làm distribution column.
-- Index theo `(site_id, ...)` cho truy vấn nhanh trong cùng shard — tránh join cross-shard.
-- Tạo bảng shard mới:
+* Bảng shard có `site_id` (UUID) làm distribution column.
+* Index khoá ngoài trong cùng shard mới dùng được hiệu quả – tránh JOIN giữa Repo Postgres thường và Citus.
+* Khi tạo bảng shard mới:
 
   ```elixir
   create table(:my_table, primary_key: false) do
@@ -54,17 +56,17 @@ make migrate    # đã trỏ Citus
   execute "SELECT create_distributed_table('my_table', 'site_id')"
   ```
 
-- Co-locate với bảng có sẵn (ví dụ `products`) bằng cách truyền `colocate_with => 'products'` cho `create_distributed_table`.
+* Nếu cần co-locate với bảng đã có (`products`), thêm `colocate_with => 'products'` trong `create_distributed_table`.
 
-## Migration
+## Migrations
 
-```text
-priv/repo/migrations/             # Migration cho Repo
-priv/repo/citus_migrations/       # Migration cho Citus (khi tách)
+```
+priv/repo/migrations/             # Migration cho Repo thường
+priv/repo/citus_migrations/       # Migration cho Citus (nếu được tách)
 priv/repo/seeds.exs               # Seed
 ```
 
-Alias trong `mix.exs`:
+Aliases tiện ích trong `mix.exs`:
 
 ```elixir
 "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
@@ -78,62 +80,62 @@ mix ecto.setup
 mix ecto.reset
 ```
 
-## Pool kết nối
+## Connection pool
 
-- Pool mặc định 30+ (mỗi env trong `config/dev.exs`, `prod.exs`).
-- Với truy vấn chạy dài, ưu tiên `Repo.transaction(fn -> ... end, timeout: :infinity)` thay vì tăng pool size.
+* Pool mặc định 30+ tuỳ env (`config/dev.exs`, `prod.exs`).
+* Khi long-running query, dùng `Repo.transaction(fn -> ... end, timeout: :infinity)` thay vì tăng pool size.
 
 ## MongoDB
 
-- Schema trong `lib/db_collections/`.
-- API: `Mongo.find/3`, `Mongo.insert_one/3`, `Mongo.delete_many/3`.
-- Trường hợp dùng:
-  - `form_data` cỡ lớn (lead, trường động).
-  - Log import / scrape.
-- Index quan trọng được định nghĩa trong script ở `mongo/`.
+* Collection cấu hình tại `lib/db_collections/`.
+* Sử dụng `Mongo.find/3`, `Mongo.insert_one/3`.
+* Mongo dùng cho:
+  * `form_data` lớn (lead, dynamic field).
+  * Log import/scrape.
+* Index quan trọng: định nghĩa trong script `mongo/`.
 
 ## Redis
 
-- `lib/redis/` cung cấp `Redis.get/1`, `Redis.set/3`, `Redis.del/1`, `Redis.publish/2`.
-- `lib/redlock.ex` — distributed lock giữa nhiều node.
-- Quy ước key: `<prefix>:<entity>:<id>` (ví dụ `storecake:product:<uuid>:detail`).
-- TTL cache phải truyền rõ (`expire_seconds`); chỉ bypass cache (`force: true`) khi thực sự cần.
+* `lib/redis/` cung cấp `Redis.get/1`, `Redis.set/3`, `Redis.del/1`, `Redis.publish/2`.
+* `lib/redlock.ex` – distributed lock (nhiều node cùng acquire).
+* Quy ước key: `<prefix>:<entity>:<id>` (vd `storecake:product:<uuid>:detail`).
+* Cache TTL phải truyền rõ (`expire_seconds`); cẩn thận khi bypass cache (`force: true`).
 
-## Elasticsearch
+## ElasticSearch
 
-- Mỗi entity có index riêng (`products`, `orders`, `customers`, `pages`,…).
-- Mapping định nghĩa trong `<domain>/elastic.ex`.
-- Reindex chạy qua `Rabbit.IndexingConsumer` (xem [Runbook](./run.md)).
-- Để dựng lại toàn bộ, gọi `Elastic.re_setup_product_index/0` trong IEx.
+* Index theo entity (`products`, `orders`, `customers`, `pages`,…).
+* Mapping định nghĩa tại module domain tương ứng (`<domain>/elastic.ex`).
+* Reindex chạy qua Rabbit consumer (`Rabbit.IndexingConsumer`) – xem [Run book](../run.md).
+* Có module helper `Elastic.re_setup_product_index/0` (chạy ở iex) khi cần dựng lại index.
 
 ## QuestDB
 
-- Metric realtime (conversion, pixel, view).
-- Module sender ở `lib/questdb/` (ILP qua TCP).
-- Truy vấn qua HTTP `questdb_host/exec?query=...`.
+* Lưu metric realtime (conversion, pixel, view).
+* Module client ở `lib/questdb/` (sender qua UDP/TCP).
+* Truy vấn qua HTTP API `questdb_host/exec?query=...`.
 
 ## S3
 
-- Bucket cấu hình qua các biến `S3_*`.
-- `BuilderxApi.AwsS3` cung cấp upload + presigned URL.
-- Tách bucket public (asset) và private (CMS, hoá đơn).
+* Bucket cấu hình qua env `S3_*`.
+* Module `BuilderxApi.AwsS3` (xem `lib/builderx_api/aws_s3.ex`) cung cấp upload, presigned URL.
+* Có chia bucket public (asset) và private (file CMS, invoice).
 
-## Sao lưu / phục hồi thảm hoạ
+## Backup / DR
 
-- Postgres + Citus snapshot hằng ngày (ops chịu trách nhiệm).
-- Khi cần dữ liệu giống prod ở máy local, **clone từ staging**, không restore dump prod.
-- Mongo backup theo lịch `mongodump` của ops.
+* Postgres + Citus snapshot lưu hằng ngày (ops team quản lý).
+* Khi đụng dữ liệu prod local, **clone từ staging** thay vì restore prod dump.
+* Mongo backup theo `mongodump` định kỳ.
 
-## Best practice
+## Best practices
 
-- Tuyệt đối không `Repo.all/1` trên bảng shard mà không filter `site_id`.
-- Cần join cross-shard thì denormalize sang Elastic thay vì cố join trong Citus.
-- Migration dài nên chia batch (`Ecto.Migration.flush/0` + `mix run scripts/...`).
-- Không bật `Logger.debug` SQL ở prod (đã tắt trong `prod.exs`).
+* **Không** dùng `Repo.all/1` không paginate cho bảng shard – luôn lọc `site_id`.
+* Khi truy vấn join cross-shard, cân nhắc copy data vào Elastic hoặc denormalize.
+* Long migration nên chạy theo batch (`Ecto.Migration.flush/0` + script `mix run`).
+* Bật `Logger.debug` SQL khi cần debug, **không** để bật mặc định prod (đã off trong `prod.exs`).
 
-## Xem thêm
+## Tham chiếu
 
-- [Kiến trúc](./architecture.md)
-- [Tích hợp](./integrations.md)
-- [Cronjob](./cronjobs.md)
-- [Runbook](./run.md)
+* [Architecture](architecture.md)
+* [Integrations](integrations.md)
+* [Cronjobs](cronjobs.md)
+* [Run book](../run.md)
