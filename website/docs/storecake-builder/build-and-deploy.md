@@ -3,101 +3,100 @@ sidebar_position: 10
 title: Build và Deploy
 ---
 
-# Build và Deploy
+# Build & Deploy
 
-`builderx_spa` build bằng Vite, đóng gói cùng `server.js` và triển khai lên server bằng Ansible.
+`builderx_spa` được build bằng Vite, package + `server.js` Express deploy ra server bằng Ansible.
 
-## Script npm
+## Scripts npm
 
-| Script | Vai trò |
-| --- | --- |
-| `npm run dev` | Chạy `node server.js` — Express + Vite middleware ở chế độ dev. |
-| `npm run watch` | Giống `dev` nhưng dùng `nodemon` để reload lớp Node. |
-| `npm run build:client` | `vite build --outDir dist/client --mode production`. |
-| `npm run test_build:client` | Build vào `dist/client_<sha>` — cho bản preview / QA. |
-| `npm run clean` | Xoá thư mục `dist/`. |
-| `npm run lint` | ESLint `--fix` cho `src/`. |
-| `npm run format` | Prettier toàn repo. |
-| `npm run setup:husky` | Cài Husky + chmod hook. |
-| `npm run validate:schemas` | Kiểm tra JSON schema trait Editor V2 trong `schemas/`. |
-| `npm run build:schemas` | Sinh lại `schemas/elements.json` từ `schemas/elements/*`. |
-| `npm run deploy` | Alias cho `build:client` (không tự push). |
+| Script                   | Mục đích                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------ |
+| `npm run dev`            | Chạy `node server.js` – Express + Vite middleware (dev mode).                              |
+| `npm run watch`          | Chạy `nodemon server.js` cho auto reload server-side.                                      |
+| `npm run build:client`   | `vite build --outDir dist/client --mode production`.                                       |
+| `npm run test_build:client` | Build vào folder hash theo commit (`dist/client_<sha>`) → dùng cho preview/QA.          |
+| `npm run clean`          | Xoá `dist/`.                                                                               |
+| `npm run lint`           | ESLint `--fix` cho `src/`.                                                                  |
+| `npm run format`         | Prettier cho toàn repo.                                                                     |
+| `npm run setup:husky`    | Cài Husky + chmod hook.                                                                     |
+| `npm run validate:schemas` | Validate JSON schema Editor V2 ở `schemas/`.                                             |
+| `npm run build:schemas`  | Build `schemas/elements.json` từ folder `schemas/elements/*`.                              |
+| `npm run deploy`         | Alias build (`build:client`) – wrapper, không tự push.                                     |
 
-## Quy trình build
+## Build pipeline
 
-1. **Validate schema** ở CI (`npm run validate:schemas`).
-2. **Lint + kiểm tra format**.
-3. `npm run build:client` — sinh `dist/client/`:
-   - `index.html`, `index_themes.html`.
-   - `assets/*.js`, `assets/*.css` đã hash.
-   - Tệp tĩnh copy từ `public/`.
-4. Hook `postinstall` đảm bảo thư mục `tinymce/` tồn tại ở thư mục gốc (`rm -rf tinymce && cp -R node_modules/tinymce tinymce`).
+1. **Validate schema** (CI nên chạy `npm run validate:schemas`).
+2. **Lint** + **format check**.
+3. `npm run build:client` → tạo `dist/client/`:
+   * `index.html`, `index_themes.html`.
+   * Chunk `assets/*.js`, `assets/*.css`.
+   * Static copy từ `public/`.
+4. Postinstall hook đảm bảo `tinymce/` được copy ra (`rm -rf tinymce && cp -R node_modules/tinymce tinymce`) – cần thiết cho dev local; trên CI sau khi cài deps cũng được.
 
-## Vận hành ở production
+## Server runtime (production)
 
-- `server.js` cần:
-  - Có sẵn `dist/client/`.
-  - Đầy đủ biến `process.env.*` (xem [Biến môi trường](./environment.md)).
-  - Cổng mặc định 3000 (cấu hình trong `server.js`).
-- Khuyến nghị: chạy sau **Nginx**, đặt `Cache-Control: max-age=31536000` cho `assets/*` đã hash và `no-cache` cho `index.html`.
+* `server.js` cần:
+  * `dist/client/` đã có.
+  * Biến `process.env.*` đầy đủ (xem [Environment](environment.md)).
+  * Port mặc định 3000 (chỉnh trong `server.js`).
+* Khuyến nghị chạy sau **Nginx** với cấu hình cache asset hash (`assets/*` `max-age=31536000`).
 
 ## Docker
 
-- `Dockerfile` build image gọn (Node 16 alpine, chứa `dist/`, `server.js`, `package.json`).
-- `docker-compose.yml` dùng cho **dev** (mount source, link với container backend).
-- `make dev` khởi động stack dev; `make bash` mở shell trong container.
+* `Dockerfile` (root) build image gọn (Node 16 alpine, copy `dist/`, `server.js`, `package.json`).
+* `docker-compose.yml` dùng cho **dev** (mount source, link backend).
+* `make dev` → docker compose up.
+* `make bash` → vào container.
 
-## Triển khai bằng Ansible
+## Deploy (Ansible)
 
-Thư mục `ansible/` chứa playbook. Hai môi trường: `staging` và `production` (chia cluster theo region).
+Thư mục `ansible/` chứa playbook. Triển khai chung 2 môi trường:
 
-Quy trình điển hình:
+* `staging`
+* `production` (chia nhiều cluster theo region)
 
-1. Merge nhánh feature vào `develop` → CI tự deploy staging.
-2. QA thông qua → merge `develop` vào `master`.
+Workflow điển hình:
+
+1. Merge feature vào `develop` → CI build & deploy staging.
+2. QA pass → merge `develop` → `master`.
 3. Trên máy có quyền:
-
    ```bash
    cd builderx_spa
    ansible-playbook -i ansible/inventory.yaml ansible/deploy.yaml
    ```
+4. Playbook sẽ:
+   * `git pull` repo trên server.
+   * `npm ci && npm run build:client`.
+   * Reload service Node (systemd hoặc pm2 tuỳ cấu hình).
+   * Đẩy bundle ra CDN nếu enable.
 
-Playbook sẽ:
-
-- Pull repo trên server.
-- Chạy `npm ci && npm run build:client`.
-- Reload service Node (systemd hoặc pm2 tuỳ cluster).
-- Nếu bật CDN, đẩy bundle lên CDN.
-
-## Build preview theo commit
+## Preview test build (per-commit)
 
 ```bash
 npm run test_build:client
 # → dist/client_<short_sha>/
 ```
 
-Tiện cho việc upload bản preview của một PR lên S3 hoặc server staging.
+Phù hợp để upload PR preview lên S3 hoặc preview server.
 
-## Việc cần làm sau khi deploy
+## Verify sau deploy
 
-- Mở URL admin, kiểm tra phiên bản build (Sentry release tag hoặc header `x-build`).
-- Smoke test: đăng nhập, dashboard, danh sách sản phẩm, mở Editor V2.
-- Theo dõi Sentry 10–15 phút để phát hiện lỗi mới.
-- Theo dõi log Nginx và Node những phút đầu.
+* Mở admin URL, kiểm tra version (Sentry release / header `x-build`).
+* Smoke test luồng login, dashboard, list products, mở Editor V2.
+* Kiểm tra Sentry không có spike error mới.
+* Theo dõi log Nginx + service Node 5 phút đầu.
 
 ## Rollback
 
-- Server giữ symlink `current` trỏ về release đang chạy (pattern release của Ansible).
-- Cách rollback:
-
+* Server giữ `current` symlink trỏ tới build hiện tại (Ansible release pattern).
+* Khi rollback:
   ```bash
   ansible-playbook -i ansible/inventory.yaml ansible/rollback.yaml
   ```
-
-  Hoặc trỏ symlink về release trước rồi reload Node thủ công.
+  hoặc đổi symlink thủ công về release trước rồi reload service.
 
 ## Đo lường
 
-- Sentry release tag = phiên bản trong `package.json` + git SHA.
-- `src/measure/` thu Web Vitals và các mark tuỳ chỉnh (publish, AI generate).
-- Khi thêm dependency, nên audit kích thước bundle: `npx vite-bundle-visualizer`.
+* Sentry release tag = `package.json` version + git SHA.
+* `src/measure/` chứa code đo Web Vitals và custom mark (publish, AI generate).
+* Nên kiểm tra **bundle size** sau khi thêm dependency: `npx vite-bundle-visualizer` (cài tạm khi audit).
