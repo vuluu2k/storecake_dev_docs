@@ -5,121 +5,105 @@ title: 05 — Extending
 
 # 05 — Extending
 
-Recipe thêm element mới + wire trait panel + cases nâng cao (Grid, Product, ProductSlider) + roadmap.
+Recipe thêm element mới + 4 pattern nâng cao (stateful / satellite / locked / contenteditable) + element catalog + Wk* widgets.
 
-> **Liên quan chặt:** [`07-traits-and-data.md`](./07-traits-and-data.md) cho trait schema chi tiết + cascade + defaults; [`08-glossary.md`](./08-glossary.md) cho variable abbreviations.
+> **Liên quan chặt:**
+> - [`07-traits-and-data.md`](./07-traits-and-data.md) — trait schema chi tiết, cascade, defaults, defs/*
+> - [`08-glossary.md`](./08-glossary.md) — variable abbreviations
+> - Skill `builderx_spa-editor-v2-element` — template AI-ready
 
-## 1. Recipe: Thêm 1 element mới
+## 1. Recipe: Thêm element mới
 
-### Bước 1 — Tạo folder trong `src/components/editor_v2/nodes/<element_name>/`
+### Bước 1 — Tạo folder `src/components/editor_v2/nodes/<snake_case>/`
 
-Tạo 3 file:
-- `index.vue` — Vue component + factory
-- `meta.js` — Runtime metadata (pure data, NO Vue)
-- `ai.js` — (optional) AI hints cho page generation
+3 file:
+- `meta.js` — Pure data (NO Vue, NO `@/` aliases — chỉ relative imports để `node` thuần chạy được)
+- `index.vue` — Component + factory
+- `ai.js` — (optional) AI hints
 
-Ví dụ: `src/components/editor_v2/nodes/text/`
+> **Naming:** folder dùng `snake_case` (`my_widget/`), `meta.type` dùng `kebab-case` (`'my-widget'`).
 
-#### 1a. `meta.js` — metadata (tạo trước)
+### Bước 2 — `meta.js`
 
 ```js
-// src/components/editor_v2/nodes/text/meta.js
+// nodes/my_widget/meta.js
+// Relative (không @/) vì build:schemas/validate:schemas chạy bằng `node` thuần.
+import { TRAIT } from '../../components/trait/fields/enum.js'
+
 export const meta = {
-  type: 'text',
-  label: 'Text',
-  category: 'basic',
+  type: 'my-widget',
+  label: 'My Widget',
+  category: 'basic',                          // 'layout' | 'basic' | 'system'
   showInSidebar: true,
   isContainer: false,
-  rules: { isRootOnly: false },
-
+  rules: {
+    isRootOnly: false,
+    edgeOverlay: { padding: false },          // tùy chọn: tắt overlay padding
+  },
+  defaults: {
+    style: {
+      '--node-width': 'fit',
+      padding: '12px',
+    },
+    config: {},
+    specials: {
+      text: 'My widget',
+    },
+    responsive: {
+      mobile: { padding: '8px' },             // flat OK — normalizeResponsiveSlot route
+    },
+  },
   traits: {
     general: [
-      {
-        key: 'content',
-        label: 'Content',
-        attributes: [
-          { key: 'content', type: 'text', target: 'specials', label: 'Text',
-            default: 'Lorem ipsum dolor sit amet.' },
-        ],
-      },
-      {
-        key: 'typography',
-        label: 'Typography',
-        attributes: [
-          { key: 'fontSize', type: 'number', target: 'style', label: 'Font size',
-            default: 16, props: { min: 10, max: 96 } },
-          { key: 'fontWeight', type: 'select', target: 'style', label: 'Weight',
-            default: '400',
-            props: { options: [
-              { label: 'Regular', value: '400' },
-              { label: 'Bold', value: '700' },
-            ]} },
-          { key: 'color', type: 'color', target: 'style', label: 'Color',
-            default: '#1a1a1a' },
-        ],
-      },
+      { key: 'layout',     label: 'Layout',     attributes: ['width_select', 'padding'] },
+      { key: 'background', label: 'Background', attributes: ['bg_color'] },
     ],
     advanced: [
-      {
-        key: 'html',
-        label: 'HTML',
-        attributes: [
-          { key: 'htmlId', type: 'text', target: 'specials', label: 'ID' },
-          { key: 'className', type: 'text', target: 'specials', label: 'Custom class' },
-        ],
-      },
+      { key: 'spacing',    label: 'Spacing',    attributes: ['padding_margin'] },
+      { key: 'display',    label: 'Display',    attributes: ['display'] },
     ],
   },
 }
 ```
 
-#### 1b. `index.vue` — component + factory
+**Required fields:** `type`, `label`. Mọi field khác optional với fallback hợp lý.
+
+**`TRAIT` enum** trong `enum.js` chứa key chuẩn cho trait definitions (vd `TRAIT.WIDTH_SELECT === 'width_select'`). Có thể dùng string trực tiếp, nhưng dùng enum bắt typo sớm.
+
+### Bước 3 — `index.vue`
 
 ```vue
-<!-- src/components/editor_v2/nodes/text/index.vue -->
 <template>
-  <p
+  <div
     ref="root"
-    class="wk-text"
-    :class="{ 'wk-node-selected': isSelected }"
-    :data-node-id="nodeId"
-    data-node-type="text"
-    :style="textStyle"
-    draggable="true"
-    @click.stop="onClick"
-    @dragstart="onMoveDragStart"
-    @dragend="onMoveDragEnd"
-  >{{ mergedSpecials.content || 'Type something...' }}</p>
+    v-bind="{ ...nodeAttrs, ...editableAttrs }"
+    :class="nodeClassMap"
+    :style="commonStyleData"
+    v-on="{ ...nodeListenersBase, ...dragListeners, ...editableListeners }"
+  >
+    {{ mergedSpecials.text || 'My widget' }}
+  </div>
 </template>
 
 <script>
-import { Type } from '@lucide/vue'
+import { Type } from '@lucide/vue'                           // sidebar icon
 import { nodeLeaf, draggableNode } from '@/composable/editor_v2/mixins'
 import { createNode } from '@/composable/editor_v2/createNode'
 import { meta as baseMeta } from './meta.js'
 
 export default {
-  name: 'TextV2',
+  name: 'MyWidget',
   mixins: [nodeLeaf, draggableNode],
-  computed: {
-    textStyle() {
-      const s = this.mergedStyle
-      return {
-        fontSize: s.fontSize ? s.fontSize + 'px' : undefined,
-        fontWeight: s.fontWeight,
-        color: s.color,
-        textAlign: s.textAlign,
-      }
-    },
-  },
 }
 
+// Compose runtime meta — spread base + thêm factory + icon (Vue).
+// Factory trả minimal node — registry sẽ wrap để fill defaults.
 export const meta = {
   ...baseMeta,
   icon: Type,
   factory: (overrides = {}) =>
     createNode({
-      type: 'text',
+      type: 'my-widget',
       isCanvas: false,
       style: overrides.style || {},
       config: overrides.config || {},
@@ -129,457 +113,412 @@ export const meta = {
 </script>
 
 <style scoped>
-.wk-text {
-  margin: 0;
-  font-size: 16px;
-  line-height: 1.5;
+.wk-my-widget {
+  /* structural CSS — selection/cursor/placeholder ở global */
 }
 </style>
 ```
 
-### Bước 2 — Refresh editor
+### Bước 4 — `ai.js` (optional, recommended)
 
-Vite HMR hoặc reload. `registerElements.js` scan `nodes/*/index.vue` qua glob, tự phát hiện folder mới + wrap factory để seed defaults.
+```js
+// nodes/my_widget/ai.js
+export const ai = {
+  description: 'A small widget rendering text for X purpose.',
+  hints: {
+    useWhen:     ['concrete scenario 1', 'concrete scenario 2'],
+    avoidWhen:   ['use Heading for SEO h1/h2 instead'],
+    contentTips: ['keep text short, 1 line'],
+  },
+  examples: [
+    { description: 'Default', def: { type: 'my-widget', specials: { text: 'Hello' } } },
+  ],
+  semantics: ['typography', 'inline-content'],
+}
+```
 
-### Bước 3 — Bonus: thêm vào sidebar
+Sidecar lazy-load chỉ bởi AI gen pipeline (`composable/editor_v2/ai/schema.js`).
 
-Hiện sidebar `ElementsLayoutPicker` chỉ liệt kê layout (Blank Section + Row N). Để Text xuất hiện làm draggable item:
+### Bước 5 — Thêm vào sidebar (nếu `showInSidebar: true`)
+
+Tạo / mở rộng `Elements<Group>Picker.vue`:
 
 ```vue
-<!-- src/components/editor_v2/components/sidebar/SidebarElements.vue -->
+<!-- components/editor_v2/components/sidebar/ElementsBasicPicker.vue -->
 <template>
-  <div>
-    <div v-for="def in sidebarElements" :key="def.type">
-      <ElementDragV2 :tree="() => buildElement(def.type)">
-        <ElementContainer>
-          <component :is="def.icon" /> {{ def.label }}
-        </ElementContainer>
-      </ElementDragV2>
-    </div>
+  <div class="grid grid-cols-2 gap-2">
+    <ElementDragV2 :tree="() => buildElement('my-widget')">
+      <ElementContainer label="My Widget" :icon="Type" />
+    </ElementDragV2>
   </div>
 </template>
 
 <script>
-import { listSidebar } from '@/composable/editor_v2/registry'
+import { Type } from '@lucide/vue'
 import { buildElement } from '@/composable/editor_v2/nodeFactory'
 import ElementDragV2 from '@/components/editor_v2/elements/ElementDragV2.vue'
+import ElementContainer from './ElementContainer.vue'
 
 export default {
-  components: { ElementDragV2 },
-  computed: {
-    sidebarElements() { return listSidebar() },
-  },
-  methods: { buildElement },
+  components: { ElementDragV2, ElementContainer, Type },
+  setup() { return { Type, buildElement } },
 }
 </script>
 ```
 
-### Bước 4 — Test
+Hoặc tự động qua `listSidebar()` (đọc registry):
 
-- Drag Text từ sidebar → canvas → element xuất hiện với content default
-- Click → outline xanh + ElementToolbar hiện label "Text"
-- Trait panel hiện 3 group (Content / Typography / HTML)
-- Đổi breakpoint → cascade style hoạt động đúng
-- Edit text field → ghi qua `applyTrait → changeSpecials`
+```js
+import { listSidebar } from '@/composable/editor_v2/registry'
+const items = listSidebar().filter(d => d.category === 'basic')
+```
+
+### Bước 6 — Test
+
+```bash
+npm run dev
+```
+
+- Drag element từ sidebar → canvas → outline xanh + ElementToolbar
+- Trait panel hiện đúng group/attribute
+- Đổi breakpoint → cascade hoạt động
+- Edit trait → store update + Vue re-render
+- Undo (Cmd-Z) → revert đúng 1 entry
 
 ### Checklist
 
-- [ ] Folder `nodes/<element_name>/` với 3 file: `index.vue`, `meta.js`, optional `ai.js`
-- [ ] `meta.js` — pure data, NO Vue imports, NO `@/` aliases
-- [ ] `index.vue` — import meta từ `./meta.js`, export component + spread meta + factory
-- [ ] Template: root `ref="root"` + `:data-node-id` + `data-node-type` + 5 drag attrs
-- [ ] `mixins: [nodeLeaf | nodeContainer, draggableNode]`
-- [ ] meta có `type`, `label`, `traits` tối thiểu
-- [ ] meta.factory call `createNode({ type, style:{}, config:{}, specials:{} })`
-- [ ] Container element: `meta.isContainer: true` + có `<NodeRenderer v-for>` trong template
-- [ ] Style scoped chỉ có structural CSS — selection/cursor/placeholder ở global
-- [ ] Trait attributes có `default` cho field nào muốn pre-fill
-- [ ] Chạy `npm run validate:schemas` để verify trait schema hợp lệ
+- [ ] Folder `nodes/<snake>/{index.vue, meta.js}` + tùy chọn `ai.js`
+- [ ] `meta.js` Vue-free, dùng relative import (`../../components/...`)
+- [ ] `meta.type` kebab-case, unique
+- [ ] `meta.traits` chỉ tham chiếu definition đã có trong `defs/*.js` (hoặc khai inline-spec đúng shape)
+- [ ] `index.vue` template root: `ref="root"` + `v-bind="nodeAttrs"` + `v-on="{...nodeListenersBase, ...dragListeners}"`
+- [ ] Mixin: `[nodeLeaf|nodeContainer, draggableNode]` (+ thêm `editableText`/`statefulNode`/`satelliteOwner` qua opt-in rule)
+- [ ] `meta.factory` call `createNode({type, style, config, specials})` — KHÔNG inline literal
+- [ ] Style scoped chỉ structural CSS
+- [ ] `npm run validate:schemas` pass (nếu CI bật)
 
 ## 2. Wire Trait panel — đã có sẵn
 
-Trait panel hiện đã schema-driven. Chỉ cần khai schema trong `meta.traits` thì panel tự render — KHÔNG cần thêm code component.
+Trait panel schema-driven. Chỉ cần khai trong `meta.traits` → panel tự render — KHÔNG cần thêm code.
 
 Components chính:
-- `Trait.vue` — container, đọc `getDef(type).traits` → render tab → group → field
-- `TraitField.vue` — generic field renderer (resolve component + read merged value + write qua `applyTrait`)
-- `fields/registry.js` — `FIELD_COMPONENTS` (name→Vue), `COMPONENT_BY_TYPE` (type→default UI)
+- `Trait.vue` — container, đọc `getDef(type).traits`
+- `TraitField.vue` — dispatcher resolve widget + bind value
+- `fields/registry.js` — `VUE_COMPONENTS` map (definition key → Vue widget)
+- `fields/defs/*` — `DEFINITIONS_DATA` chia domain
 
 Pipeline:
 ```
-schema field → TraitField → resolve component → bind v-model →
-  on change → applyTrait(nodeId, field, value) →
-  → changeStyle/Config/Specials theo field.target →
+meta.traits attribute (key=string hoặc {key,...})
+  → resolve qua DEFINITIONS_DATA[key]
+  → TraitField render <component :is="VUE_COMPONENTS[key]" />
+  → widget emit ('change', writeKey, value)
+  → TraitField.onChange route theo def.writes[writeKey].target
+  → nodeStore.changeStyle / changeConfig / changeSpecials
   → store update → mergeNamespace re-compute → element + field display sync
 ```
 
-Chi tiết line-by-line + dialog pattern xem [`07-traits-and-data.md`](./07-traits-and-data.md) sections 3-9.
+Chi tiết + dialog pattern + custom widget xem [`07-traits-and-data.md`](./07-traits-and-data.md) sections 4-7, 10.
 
-### Custom field component
+## 3. Pattern nâng cao
 
-Nếu data type không match COMPONENT_BY_TYPE (vd cần widget riêng), register vào registry:
+### 3.1. Container (`isContainer: true`)
 
 ```js
-// src/components/editor_v2/components/trait/fields/registry.js
-import MyCustomPicker from '../components/MyCustomPicker.vue'
-
-export const FIELD_COMPONENTS = {
-  ..., MyCustomPicker,
-}
-
-// Optional: bind type → default
-export const COMPONENT_BY_TYPE = {
-  ..., 'custom-picker': MyCustomPicker,
-}
-```
-
-Trong schema:
-```js
-{ key: 'foo', type: 'custom-picker', component: 'MyCustomPicker',
-  target: 'config', props: { ... } }
-```
-
-Component sẽ nhận props từ TraitField: `:value`, `:model-value`, `:field`, `:node-id`, `:disabled`, và mọi key trong `schema.props`. Emit qua `@input`, `@change`, `@update:value`, hoặc `@update:modelValue` (TraitField listen 4 variant).
-
-## 3. Cases nâng cao
-
-### Grid — container chuẩn
-
-**meta.js:**
-```js
-export const meta = {
-  type: 'grid',
-  label: 'Grid',
-  category: 'layout',
-  showInSidebar: true,
-  isContainer: true,
-  rules: { isRootOnly: false },
-  traits: {
-    general: [{
-      key: 'layout',
-      label: 'Layout',
-      attributes: [
-        { key: 'columns', type: 'number', target: 'style', label: 'Columns',
-          default: { base: 3, mobile: 1 }, props: { min: 1, max: 12 } },
-        { key: 'gap', type: 'number', target: 'style', label: 'Gap',
-          default: 16, props: { min: 0 } },
-      ],
-    }],
-    advanced: [],
+// meta.js
+isContainer: true,
+defaults: {
+  style: {
+    '--node-width': 'fill',
+    '--node-height': 'fit',
+    '--layout-direction': 'horizontal',
+    '--layout-vertical': 'top',
+    '--layout-horizontal': 'left',
+    padding: '0px',
   },
-}
+  config: { contentWidth: 'fill_container' },
+  responsive: {
+    mobile: { '--layout-direction': 'vertical' },
+  },
+},
+traits: {
+  general: [
+    { key: 'size',   attributes: ['width_select', 'height_select'] },
+    { key: 'layout', attributes: ['direction', 'gap', 'padding', 'vertical', 'horizontal'] },
+  ],
+},
 ```
 
-**index.vue:**
 ```vue
 <template>
-  <div
-    ref="root"
-    class="wk-grid"
-    :class="{ 'wk-node-selected': isSelected, 'wk-grid--drop-active': isDropTarget }"
-    :data-node-id="nodeId"
-    data-node-type="grid"
-    :style="gridStyle"
-    draggable="true"
-    @click.stop="onClick"
-    @dragstart="onMoveDragStart"
-    @dragend="onMoveDragEnd"
-    @dragover="onDragOver"
-    @dragenter="onDragEnter"
-  >
+  <div ref="root" v-bind="nodeAttrs" :class="nodeClassMap" :style="commonStyleData"
+       v-on="{ ...nodeListenersBase, ...dragListeners, dragover: onDragOver, dragenter: onDragEnter }">
     <template v-if="!isEmpty">
-      <NodeRenderer
-        v-for="childId in node.data.nodes"
-        :key="childId"
-        :node-id="childId"
-      />
+      <NodeRenderer v-for="childId in node.data.nodes" :key="childId" :node-id="childId" />
     </template>
-    <div v-else class="wk-node-placeholder">...</div>
+    <NodePlaceholder v-else />
   </div>
 </template>
 
 <script>
 import { nodeContainer, draggableNode } from '@/composable/editor_v2/mixins'
+import NodeRenderer from '../../elements/NodeRenderer.vue'
+import NodePlaceholder from '../../elements/NodePlaceholder.vue'
 import { createNode } from '@/composable/editor_v2/createNode'
-import NodeRenderer from '../elements/NodeRenderer.vue'
 import { meta as baseMeta } from './meta.js'
 
 export default {
-  name: 'GridV2',
-  components: { NodeRenderer },
+  name: 'MyContainer',
+  components: { NodeRenderer, NodePlaceholder },
   mixins: [nodeContainer, draggableNode],
-  computed: {
-    gridStyle() {
-      const s = this.mergedStyle
-      return {
-        display: 'grid',
-        gridTemplateColumns: `repeat(${s.columns || 3}, 1fr)`,
-        gap: (s.gap || 16) + 'px',
-      }
-    },
-  },
 }
-
-export const meta = {
-  ...baseMeta,
-  factory: (overrides = {}) =>
-    createNode({
-      type: 'grid',
-      isCanvas: true,
-      style: overrides.style || {},
-      config: overrides.config || {},
-      specials: overrides.specials || {},
-    }),
-}
+export const meta = { ...baseMeta, factory: (o = {}) => createNode({ type: 'my-container', isCanvas: true, style: o.style || {} }) }
 </script>
 ```
 
-Hoạt động với hệ hiện tại: `nodeContainer` xử lý drop, Positioner đo `getDOMInfo` (đọc `display:grid`), children là editable nodes — full drop support.
+### 3.2. Inline contenteditable (Heading/Text/Button)
 
-### Product — leaf with data binding
+```js
+// meta.js
+rules: { isRootOnly: false, isContentEditable: true, edgeOverlay: { padding: false } },
+defaults: {
+  specials: { text: 'Heading' },
+  config: { textGlobalStyle: 'heading-1' },
+}
+```
 
 ```vue
 <template>
-  <div
-    ref="root"
-    class="wk-product"
-    :class="{ 'wk-node-selected': isSelected }"
-    :data-node-id="nodeId"
-    data-node-type="product"
-    draggable="true"
-    @click.stop="onClick"
-    @dragstart="onMoveDragStart"
-    @dragend="onMoveDragEnd"
-  >
-    <template v-if="product">
-      <img :src="product.image" />
-      <h4>{{ product.title }}</h4>
-      <span>{{ product.price }}</span>
-    </template>
-    <div v-else class="wk-product--empty">Select a product</div>
-  </div>
+  <h2 ref="root"
+      v-bind="{ ...nodeAttrs, ...editableAttrs }"
+      :class="nodeClassMap"
+      :style="commonStyleData"
+      v-on="{ ...nodeListenersBase, ...dragListeners, ...editableListeners }">
+    {{ mergedSpecials.text }}
+  </h2>
+</template>
+```
+
+`nodeLeaf` đã gắn sẵn `editableText` (folded vào nodeBase) — nhưng chỉ active khi `rules.isContentEditable` true. User dblclick → contenteditable, blur → commit qua `changeSpecials(id, { text })`.
+
+### 3.3. Stateful (Button hover/active)
+
+```js
+// meta.js
+states: {
+  base: 'default',
+  variants: [
+    { value: 'default', label: 'Default' },
+    { value: 'hover',   label: 'Hover',  selector: ':hover'  },
+    { value: 'active',  label: 'Active', selector: ':active' },
+  ],
+  groups: ['background', 'shape', 'typography'],   // chỉ các group này dùng state
+},
+```
+
+```vue
+<template>
+  <button ref="root" v-bind="nodeAttrs" :class="nodeClassMap" :style="commonStyleData"
+          v-on="{ ...nodeListenersBase, ...dragListeners }">
+    <component :is="'style'" v-if="stateCss">{{ stateCss }}</component>
+    {{ mergedSpecials.text }}
+  </button>
 </template>
 
 <script>
 import { nodeLeaf, draggableNode } from '@/composable/editor_v2/mixins'
+import { statefulNode } from '@/composable/editor_v2/mixins/statefulNode'
 import { createNode } from '@/composable/editor_v2/createNode'
-import { fetchProduct } from '@/api/productApi'
+import { meta as baseMeta } from './meta.js'
 
 export default {
-  name: 'ProductV2',
-  mixins: [nodeLeaf, draggableNode],
-  data() { return { product: null } },
-  watch: {
-    // productId là DATA cố định cho mọi viewport → specials
-    'mergedSpecials.productId': {
-      immediate: true,
-      async handler(id) {
-        this.product = id ? await fetchProduct(id) : null
-      },
-    },
-  },
+  name: 'MyButton',
+  mixins: [nodeLeaf, draggableNode, statefulNode],
 }
-
-export const meta = {
-  type: 'product',
-  label: 'Product Card',
-  category: 'commerce',
-  showInSidebar: true,
-  isContainer: false,
-  factory: (overrides = {}) =>
-    createNode({
-      type: 'product',
-      style: overrides.style || {},
-      config: overrides.config || {},
-      specials: overrides.specials || {},
-    }),
-  traits: {
-    general: [{
-      key: 'data', label: 'Product', attributes: [
-        { key: 'productId', type: 'product-picker', target: 'specials', label: 'Product',
-          component: 'ProductPicker' },                    // custom widget — register vào FIELD_COMPONENTS
-        { key: 'layout', type: 'select', target: 'specials', label: 'Layout',
-          default: 'vertical',
-          props: { options: [
-            { label: 'Vertical', value: 'vertical' },
-            { label: 'Horizontal', value: 'horizontal' },
-          ]} },
-      ],
-    }],
-    advanced: [],
-  },
-}
+export const meta = { ...baseMeta, factory: (o = {}) => createNode({ type: 'my-button', style: o.style || {} }) }
 </script>
 ```
 
-`productId` đi vào specials vì 1 product card cố định cho mọi bp.
+Toolbar tự hiện WkSegmented variant picker. User chọn "Hover" + edit `bg_color` → `_routeState` divert vào `config.hover.background` → `stateCss` compose CSS `[data-node-id="..."]:hover { background: ... !important }`.
 
-### ProductSlider — Pattern A (đơn giản, đủ 90% case)
+### 3.4. Satellite (Tab ↔ TabContent / List ↔ ListItem)
+
+Owner declares `satellite`:
+
+```js
+// nodes/tab/meta.js
+satellite: { type: 'tab-content', configKey: 'satelliteId' },
+```
+
+Owner mounts `satelliteOwner` mixin:
 
 ```vue
-<template>
-  <div
-    ref="root"
-    class="wk-product-slider"
-    :class="{ 'wk-node-selected': isSelected }"
-    :data-node-id="nodeId"
-    data-node-type="product-slider"
-    draggable="true"
-    @click.stop="onClick"
-    @dragstart="onMoveDragStart"
-    @dragend="onMoveDragEnd"
-  >
-    <swiper
-      :slides-per-view="mergedConfig.slidesPerView"
-      :autoplay="mergedSpecials.autoplay"
-      :space-between="mergedStyle.gap"
-    >
-      <swiper-slide v-for="p in products" :key="p.id">
-        <ProductCard :product="p" />
-      </swiper-slide>
-    </swiper>
-  </div>
-</template>
-
 <script>
-import { nodeLeaf, draggableNode } from '@/composable/editor_v2/mixins'
-import { createNode } from '@/composable/editor_v2/createNode'
-import { Swiper, SwiperSlide } from 'swiper/vue'
-import ProductCard from './ProductCard.vue'                // fixed internal template
-import { fetchCollection } from '@/api/collectionApi'
+import { nodeContainer, draggableNode } from '@/composable/editor_v2/mixins'
+import { satelliteOwner } from '@/composable/editor_v2/mixins/satelliteOwner'
 
 export default {
-  name: 'ProductSliderV2',
-  components: { Swiper, SwiperSlide, ProductCard },
-  mixins: [nodeLeaf, draggableNode],
-  data() { return { products: [] } },
-  watch: {
-    'mergedSpecials.collectionId': {
-      immediate: true,
-      async handler(id) { this.products = id ? await fetchCollection(id) : [] },
-    },
-  },
-}
-
-export const meta = {
-  type: 'product-slider',
-  label: 'Product Slider',
-  category: 'commerce',
-  showInSidebar: true,
-  isContainer: false,
-  factory: (overrides = {}) =>
-    createNode({
-      type: 'product-slider',
-      style: overrides.style || {},
-      config: overrides.config || {},
-      specials: overrides.specials || {},
-    }),
-  traits: {
-    general: [
-      {
-        key: 'data', label: 'Data', attributes: [
-          { key: 'collectionId', type: 'collection-picker', target: 'specials',
-            label: 'Collection', component: 'CollectionPicker' },
-        ],
-      },
-      {
-        key: 'layout', label: 'Layout', attributes: [
-          // slidesPerView khác theo bp → config với per-bp default
-          { key: 'slidesPerView', type: 'number', target: 'config', label: 'Slides per view',
-            default: { base: 3, mobile: 1, tablet: 2 },
-            props: { min: 1, max: 8 } },
-          { key: 'gap', type: 'number', target: 'style', label: 'Gap',
-            default: 16,
-            props: { min: 0, suffix: 'px' } },
-        ],
-      },
-      {
-        key: 'behavior', label: 'Behavior', attributes: [
-          { key: 'autoplay', type: 'switch', target: 'specials', label: 'Autoplay',
-            default: true },
-        ],
-      },
-    ],
-    advanced: [],
-  },
+  mixins: [nodeContainer, draggableNode, satelliteOwner],
+  // satelliteId + satelliteNode được expose qua mixin
 }
 </script>
+
+<template>
+  <div ref="root" ...>
+    <!-- tab items vẫn trong data.nodes -->
+    <NodeRenderer v-for="id in node.data.nodes" :key="id" :node-id="id" />
+    <!-- satellite render qua satelliteId -->
+    <NodeRenderer v-if="satelliteId" :node-id="satelliteId" />
+  </div>
+</template>
 ```
 
-Bảng phân namespace:
+Satellite element thường có `rules.locked: true` + `rules.hideInLayer: true`:
 
-| Field | Namespace | Lý do |
-|---|---|---|
-| `collectionId` | specials | Data cố định cho mọi bp |
-| `slidesPerView` | config | KHÁC theo bp (3 desktop, 1 mobile) — dùng per-bp default |
-| `gap` | style | CSS visual |
-| `autoplay` | specials | Behavior cố định |
+```js
+// nodes/tab_content/meta.js
+rules: { locked: true, hideInLayer: true, edgeOverlay: { padding: false } },
+```
 
-### ProductSlider — Pattern B (advanced — linked nodes)
+`ensureSatellite()` chạy `$nextTick(mounted)` → nếu chưa có, gọi `factoryFor('tab-content')` → `addDetachedNode(node, ownerId)` → ghi `satelliteId` vào `config`.
 
-Goal: card template là **subtree editable**, runtime clone × N products. Cần extend hệ thống (linked nodes, instance render). Không cover ở đây — xem [`07-traits-and-data.md`](./07-traits-and-data.md) roadmap.
+Satellite KHÔNG xuất hiện trong Layers, KHÔNG drag tách rời, KHÔNG delete riêng. Bị xoá khi owner xoá (cascade qua `remove`).
 
-## 4. Roadmap
+### 3.5. Locked (Page / Header / Footer / system)
 
-### Tier 1 (ngắn hạn)
+```js
+rules: { locked: true, hideInLayer: true }
+```
 
-- [x] Wire `meta.traits` vào Trait panel (TraitField + applyTrait)
-- [ ] Wire registry vào LayerItem (label + icon từ `getDef`)
-- [ ] Sidebar element picker đọc `listSidebar()` thay vì hardcode
-- [ ] Thêm Text, Button, Image, Spacer, Divider (leaf elements)
-- [ ] Thêm Grid container
-- [ ] Trait field widget: SpacingField (4-input), ColorPicker, ImagePicker
+- `remove(id)` refuse
+- `duplicate(id)` refuse
+- `onMoveDragStart` early-return (e.preventDefault)
+- LayerItem ẩn (theo `hideInLayer`)
+- ElementToolbar disable trash + duplicate
 
-### Tier 2 (trung hạn)
+## 4. Element catalog hiện tại (15 type)
 
-- [ ] Mỗi dialog (BackgroundColorDialog, BorderDialog, ...) wire `applyTrait` qua `ui.settingDialogs[i].data` context
-- [ ] Multi-select (shift-click) → events.selected có thể > 1 item
-- [ ] Undo/Redo (history store snapshot mỗi action)
-- [ ] Copy / Cut / Paste (Cmd-C, Cmd-V) — serialize node JSON
-- [ ] Reset to default UI per trait field (qua `getDefaultsFor(type)`)
+| Type | Label | Folder | Category | Container | Mixins (+opt-in) | Notes |
+|---|---|---|---|---|---|---|
+| `root` | Page | `root_canvas` | system | yes | (custom) | locked + hideInLayer |
+| `flex-section` | Section | `flex_section` | layout | yes | nodeContainer + draggableNode | isRootOnly |
+| `flex-block` | Block | `flex_block` | layout | yes | nodeContainer + draggableNode | — |
+| `heading` | Heading | `heading` | basic | no | nodeLeaf + draggableNode | isContentEditable |
+| `text` | Text body | `text` | basic | no | nodeLeaf + draggableNode | isContentEditable |
+| `button` | Button | `button` | basic | no | nodeLeaf + draggableNode + statefulNode | states: default/hover/active |
+| `image` | Image | `image` | basic | no | nodeLeaf + draggableNode | asset-picker |
+| `image-comparison` | Image Comparison | `image-comparison` | basic | no | nodeLeaf + draggableNode | dual asset |
+| `icon` | Icon | `icon` | basic | no | nodeLeaf + draggableNode | Lucide picker |
+| `list` | List | `list` | basic | yes | nodeContainer + draggableNode + satelliteOwner | items = list-item children |
+| `list-item` | List item | `list_item` | basic | yes | nodeContainer + draggableNode | bị `ListItemsTrait` quản lý |
+| `tab` | Tab | `tab` | basic | yes | nodeContainer + draggableNode + satelliteOwner | satellite: tab-item |
+| `tab-content` | Tab content | `tab_content` | basic | yes | nodeContainer + draggableNode | child của tab |
+| `tab-item` | Tab item | `tab_item` | basic | no | nodeLeaf | satellite — locked |
+| `breadcrumb` | Breadcrumb | `breadcrumb` | basic | no | nodeLeaf + draggableNode | separator + crumbs |
 
-### Tier 3 (dài hạn)
+> Tham khảo `composable/editor_v2/templates/hero.js` cho composite page template — drop nhiều element qua `buildTemplate(id)`.
 
-- [ ] Linked nodes (ProductSlider pattern B, ProductGrid, FormBuilder)
-- [ ] Inline text editing (Heading, Text contentEditable + commit qua `applyTrait`)
-- [ ] Save / Load page state (serialize `nodeStore.nodes` JSON — xem section 7 ở `01-architecture.md`)
-- [ ] Custom elements ecosystem (3rd-party developers register meta)
-- [ ] Keyboard nav (arrow chọn sibling, Esc deselect)
-- [ ] Lock / Hide element (specials.hiddenOn array)
-
-## 5. Conventions tổng kết
+## 5. Common conventions
 
 | Việc | Quy ước |
 |---|---|
-| File element | `nodes/XxxV2.vue` PascalCase |
-| Type string | kebab-case (`flex-section`, `product-slider`) |
-| CSS class | prefix `wk-`, modifier `--`, element `__` |
-| Mixin compose | `[nodeLeaf\|nodeContainer, draggableNode]` |
-| Default render | `<NodeRenderer v-for>` cho container, leaf không cần |
+| Folder element | `nodes/<snake_case>/` |
+| File trong folder | `index.vue` (component), `meta.js` (data), `ai.js` (optional hints) |
+| Type string | kebab-case (`flex-section`, `image-comparison`) |
+| CSS class | prefix `wk-`, BEM modifier `--`, element `__` |
+| Mixin compose | `[nodeLeaf\|nodeContainer, draggableNode, ...opt-in]` |
+| Default render container | `<NodeRenderer v-for>` cho children |
 | Read data | `mergedStyle`, `mergedConfig`, `mergedSpecials` (mixin) |
-| Write data | `changeStyle / changeConfig / changeSpecials / applyTrait` (qua mixin method shortcuts hoặc `useNodeStore()`) |
-| Hardcoded type string trong code | TRÁNH — lookup `getDef(type)` |
-| Component nội bộ (vd ProductCard) | Đặt cạnh file element, không trong `nodes/` |
-| API call trong element | Watch `mergedSpecials.xxxId` / `mergedConfig.xxxId`, async fetch |
-| Side-effect cleanup | `beforeUnmount` cancel rAF, remove listener, abort fetch |
-| Trait default per-bp | Dùng `default: { base, mobile, ... }` — object có key bp/reserved auto-detect qua `isBreakpointMap` |
-| Trait default complex value | Object không có key bp/reserved → wrapper ghi NGUYÊN object vào base |
+| Write data | `changeStyle / changeConfig / changeSpecials` qua mixin shortcut hoặc `useNodeStore()` |
+| Hardcoded type string trong code | TRÁNH — lookup `getDef(type)` hoặc `meta.rules` |
+| Component nội bộ | Đặt cạnh file element (vd `./SeparatorIcon.vue`), KHÔNG trong `nodes/` cấp 1 |
+| API call trong element | Watch `mergedSpecials.xxxId`, async fetch, cleanup ở `beforeUnmount` |
+| Trait default per-bp | Dùng `default: { base, mobile, ... }` (object có key bp/reserved) hoặc `defaults.responsive.<bp>` |
+| Trait default complex value (key trùng bp name) | Wrap qua `{ base: {...} }` |
 
-## 6. Common element type sketch
+## 6. Wk* components reusable (webcake-ui-kit)
 
-| Element | Mixin | Container? | Key trait |
-|---|---|---|---|
-| Heading | `nodeLeaf + draggableNode` | No | text(specials), color/fontSize/weight/align(style) |
-| Text (long) | `nodeLeaf + draggableNode` | No | content(specials), typography(style) |
-| Button | `nodeLeaf + draggableNode` | No | label(specials), href(specials), bg/color/padding(style) |
-| Image | `nodeLeaf + draggableNode` | No | src(specials hoặc config nếu art-direction), alt(specials), size(style) |
-| Spacer | `nodeLeaf + draggableNode` | No | height(style — per-bp) |
-| Divider | `nodeLeaf + draggableNode` | No | color/thickness(style) |
-| FlexBlock | `nodeContainer + draggableNode` | Yes | flexDirection/gap/padding(style) |
-| FlexSection | `nodeContainer + draggableNode` | Yes (root-only) | padding/background(style) |
-| Grid | `nodeContainer + draggableNode` | Yes | columns/gap(style — per-bp) |
-| Card | `nodeContainer + draggableNode` | Yes | bg/padding/border(style) |
-| Tabs | `nodeContainer + draggableNode` | Yes (linked-node future) | tabs label(specials) |
-| Product (1 card) | `nodeLeaf + draggableNode` | No | productId(specials), layout(specials) |
-| ProductSlider Pattern A | `nodeLeaf + draggableNode` | No | collectionId(specials), slidesPerView(config per-bp), autoplay(specials) |
-| ProductSlider Pattern B (future) | `nodeContainer + draggableNode` + linked node | Special | + item template subtree |
+Trait widget nên ưu tiên Wk* components thay vì raw HTML/Tailwind:
+
+| Wk component | Dùng cho |
+|---|---|
+| `WkInput` | Text input, number input |
+| `WkSelect` + `WkSelectOption` | Dropdown |
+| `WkTabs` | Tab group (vd width-mode fill/fit/fixed) |
+| `WkSegmented` | Toggle group (vd state picker) |
+| `WkToggle` | Boolean switch |
+| `WkSlider` | Numeric slider |
+| `WkButton` | Generic button |
+| `WkDivider` | Section divider |
+| `WkiXxx` (icons) | Icon SVG từ `webcake-ui-kit/icons` |
+
+Skill `builderx_spa-figma-to-ui-kit` có flow đầy đủ để translate Figma → Wk* widget.
+
+## 7. Roadmap
+
+### Tier 1 (ngắn hạn)
+
+- [x] Folder-per-type registry
+- [x] meta.defaults seed via factory wrap
+- [x] Trait panel schema-driven (TraitField + applyTrait)
+- [x] LayerItem đọc registry label/icon
+- [x] Sidebar picker per category
+- [x] Stateful pattern (Button hover/active)
+- [x] Satellite pattern (Tab ↔ TabContent, List ↔ ListItem)
+- [x] InlineContentEditable (Heading/Text/Button)
+- [x] Element catalog: 14 user-facing types
+- [ ] Spacer + Divider primitive
+- [ ] Reset-to-default per trait field button
+
+### Tier 2 (trung hạn)
+
+- [ ] Multi-select (shift-click) → events.selected > 1
+- [x] Undo/Redo qua PatchRecorder (xem [`10-history.md`](./10-history.md))
+- [ ] Copy / Cut / Paste qua clipboard (chỉ duplicate trong canvas)
+- [ ] Lock/hide UI toggle trong Layers (rule đã có, UX chưa)
+- [ ] Reorder satellites (drag tab-item theo display order)
+- [x] AI Generate page Phase 1 (xem [`09-ai-page-generation.md`](./09-ai-page-generation.md))
+
+### Tier 3 (dài hạn)
+
+- [ ] Linked nodes (ProductSlider Pattern B)
+- [x] Save/Load page state qua `useEditorPageStore`
+- [x] Multi-page navigation (`usePageListStore`)
+- [ ] AI inline-edit selected (Phase 2)
+- [ ] Keyboard nav (arrow chọn sibling, Esc deselect)
+- [ ] Custom elements ecosystem (3rd-party register meta)
+
+## 8. AI-ready metadata (recommended)
+
+Khi build element mới + có lộ trình tích hợp AI gen, fill thêm `ai.js` đầy đủ:
+
+```js
+export const ai = {
+  description: '1-2 câu mô tả semantic role',
+  hints: {
+    useWhen:     ['scenario 1', 'scenario 2'],
+    avoidWhen:   ['use Heading for SEO instead'],
+    contentTips: ['short label, max 30 chars'],
+  },
+  expectedChildren: {                         // container only
+    typical: ['heading', 'text', 'button'],
+    patterns: ['heading + text + button (CTA)'],
+  },
+  layoutHints: {                              // container only
+    whenChildren: {
+      1:     { flexDirection: 'column' },
+      '2-3': { flexDirection: 'row', gap: '24px' },
+      '4+':  { flexDirection: 'row', gap: '16px' },
+    },
+  },
+  examples: [
+    { description: 'CTA button', def: { type: 'button', specials: { text: 'Get started' } } },
+  ],
+  semantics: ['cta', 'above-fold-ok'],
+}
+```
+
+Container element: `expectedChildren` + `layoutHints`.
+Storefront element (commerce): `dataBindings` + `pageContext`.
+
+Skill `builderx_spa-editor-v2-ai-gen` có template đầy đủ.
