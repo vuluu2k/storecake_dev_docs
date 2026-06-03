@@ -1,590 +1,429 @@
----
-sidebar_position: 9
-title: 08 — Glossary
----
-
 # 08 — Glossary
 
 Tham chiếu nhanh: variable abbreviations, function purposes, file mapping. Mỗi entry có ý nghĩa + nơi xuất hiện + ví dụ.
 
 ---
 
-## New terms (post-refactor)
+## A. Core concepts
 
-### `definitions.js` — **Trait definition data file**
+### `Node` / `NodeTree`
 
-File chứa `DEFINITIONS_DATA` — pure data map của reusable trait definitions. Mỗi definition có `writes` map (multi-target dispatch). Không import Vue.
+`Node` = `{ id, data: { type, name, style, config, specials, events, bindings, parent, nodes, isCanvas, hidden, custom, responsive }, dom, events }`. `dom` markRaw, `events` (top-level) = runtime DOM-listener bag.
 
-**Nơi:** `src/components/editor_v2/components/trait/fields/definitions.js`
+`NodeTree` = `{ rootNodeId, nodes }`. Output từ factory / `createNodeTree(def)` / `wrapInBlankSection`. Input cho `addNodeTree`.
 
-**Dùng để:** Reuse trait config across elements. Vd `width_select` definition dùng cho cả FlexBlock, Grid, etc. Thay vì định nghĩa lại trong mỗi element.
+### Element folder convention
 
----
+`nodes/<snake_case>/{index.vue, meta.js, ai.js?}` — auto-register qua `import.meta.glob`. Type string `kebab-case`.
 
-### `registry.js` (trong `trait/fields/`) — **Trait registry với Vue**
+### `meta` vs `def`
 
-Attach Vue component field vào definitions data. Import `DEFINITIONS_DATA` từ `definitions.js`, gắn `.component` field, export `COMPONENT_DEFINITIONS`.
-
-**Khác** `composable/editor_v2/registry.js` (element registry).
-
----
-
-### `writes` — **Multi-target dispatch map**
-
-Object trong definition: `{ key: { target, schema } }`. Khi 1 attribute thay đổi, có thể update nhiều node data keys cùng lúc.
-
-```js
-{ padding: { target: 'style', schema: {...} },
-  isPaddingLinked: { target: 'specials', schema: {...} } }
-```
-
-→ 1 PaddingTrait emit `padding` + `isPaddingLinked`.
-
----
-
-### `schema_helpers.js` — **JSON Schema builder utilities**
-
-File chứa helpers như `cssLength`, `cssColor`, `responsive`, `enumOf`, etc. Build JSON Schema objects (Ajv-compatible).
-
----
-
-### `ai.js` (element sidecar) — **AI-generation metadata**
-
-Optional file `nodes/<name>/ai.js`. Lazy-loaded, contains: description, useWhen/avoidWhen, examples, semantics. Dùng khi building LLM tool schema (Phase 1 của AI gen).
-
----
-
-### `buildElementSchema(meta)` — **Pure function**
-
-Walk element `meta.traits` → resolve definitions → return JSON Schema object matching `{ type: 'object', properties: { style?, config?, specials? } }` shape. Output matches `createNodeTree` contract.
-
----
-
-### `allowedKeys` — **Guard against typos**
-
-Set tất cả valid keys từ traits của element. Store `_writeNamespace` action guard:
-- Check incoming key có trong `allowedKeys`
-- Nếu không → `console.warn('unknown key dropped')`
-- Drop từ patch, write rest
-
-Catch hallucination từ typo / AI misfire.
-
----
-
-### `index.vue` (element convention) — **Component + factory home**
-
-Element structure: `nodes/<name>/index.vue` chứa Vue component + factory function. Import `meta` từ `./meta.js`, spread + override với factory.
-
-```js
-import { meta as baseMeta } from './meta.js'
-export const meta = { ...baseMeta, factory: (overrides) => ... }
-```
-
----
-
-### `meta.js` (element convention) — **Runtime metadata file**
-
-Pure data file: type, label, traits, rules. NO Vue imports, NO `@/` aliases (tránh cycle). Được import bởi `index.vue` sau.
-
----
-
-## Variable abbreviations
-
-### `ns` — **n**ame**s**pace
-Loại data trong node: `'style'`, `'config'`, hoặc `'specials'`. Quyết định nơi đọc/ghi.
-
-```js
-const ns = SEED_NS.includes(field.target) ? field.target : 'style'
-// ns sẽ là 'style', 'config', hoặc 'specials'
-```
-
-Xuất hiện: `mergeNamespace`, `_writeNamespace`, `seedField`, `writeDefault`.
-
----
-
-### `bp` — **b**reak**p**oint
-1 viewport definition `{key, label, width, isMobile}` HOẶC chỉ là key string `'desktop'/'laptop'/'tablet'/'mobile'`.
-
-```js
-for (const bp of BREAKPOINTS) {        // bp = { key, label, width, isMobile }
-  if (bp.width < curBpDef.width) continue
-}
-
-const bp = useUIStore().breakpointActive  // bp = 'tablet' (chỉ key string)
-```
-
-Phân biệt: full object vs key string xem qua context. Khi loop `BREAKPOINTS` là object; khi đọc `breakpointActive` là string.
-
-Biến liên quan:
-- `bpKey` = key string (`'mobile'`)
-- `bpDef` = full breakpoint definition object
-- `curBpDef` = current breakpoint definition
-- `currentBpKey` = current breakpoint key string
-
----
-
-### `def` — element **def**inition
-`reg[type]` = object đã register = `{ ...meta, factory: wrapped, defaults, component }`.
+- `meta` — raw export từ `meta.js` (pure data, Vue-free)
+- `def` — registry record sau `registerElement(meta, component)`: `{ ...meta, factory: wrapped, defaults, allowedKeys, renderers, statefulKeys, component }`
 
 ```js
 const def = getDef('flex-section')
-// def = {
-//   type: 'flex-section', label: 'Section', icon: ...,
-//   isContainer: true, rules: {...},
-//   factory: (overrides) => {...},       // wrapped factory (seed defaults)
-//   defaults: { style:{...}, ... },       // extracted từ traits
-//   component: FlexSectionV2,             // Vue SFC
-//   traits: {...},                        // schema gốc
-// }
+// def.component (Vue SFC), def.factory (wrapped), def.allowedKeys (Set per ns), def.renderers (CSS array)
 ```
 
-Khác với `meta` (raw export từ file element). `def = meta + component + defaults + wrapped factory`.
+### `ai` (element sidecar)
 
----
+Optional `nodes/<name>/ai.js`. Lazy-loaded chỉ bởi `composable/editor_v2/ai/schema.js`. Chứa `description`, `useWhen/avoidWhen`, `examples`, `semantics`, `expectedChildren?`, `layoutHints?`, `dataBindings?`.
 
-### `meta` — element **meta**data
-Object raw `export const meta = {...}` trong file element. Chưa qua registry.
+### `state` / `variant`
+
+`meta.states.variants[].value` — `'default' | 'hover' | 'active' | ...`. Active variant lưu trong `nodeStore.events.state`.
 
 ```js
-// nodes/HeadingV2.vue
-export const meta = {
-  type: 'heading',
-  label: 'Heading',
-  factory: (overrides) => createNode({...}),
-  traits: {...},
-}
+useNodeStore().setState('hover')       // toggle UI variant
+useNodeStore().changeStyle(id, { background: '#0d6efd' }, { stateful: true })
+// → divert vào config.hover.background
 ```
 
-Sau khi `registerElement(meta, component)` thì meta được biến thành `def` trong registry.
+### `satellite`
+
+Real node trong flat `nodes[]` map nhưng KHÔNG nằm trong `parent.data.nodes` (không xuất hiện Layers / không reorder riêng). Vd `tab` ↔ `tab-item`, `list` ↔ `list-item` shared skin.
+
+Owner declares `meta.satellite = { type, configKey }`. `satelliteOwner` mixin auto-create child via `addDetachedNode` ở mounted.
+
+### `locked`
+
+`meta.rules.locked = true` → `remove` / `duplicate` / `onMoveDragStart` từ chối. Cascade theo owner. Vd ROOT, satellite, tab-item.
+
+### `isContentEditable`
+
+`meta.rules.isContentEditable = true` → `editableText` mixin bật dblclick → contenteditable. User edit text inline, blur commit qua `changeSpecials({text})`.
 
 ---
 
-### `ctx` — **c**onte**x**t (trong dialog)
+## B. Variable abbreviations
+
+### `ns` — namespace
+`'style' | 'config' | 'specials'`. Quyết định nơi đọc/ghi.
+
+### `bp` — breakpoint
+1 viewport `{ key, label, width, isMobile }` HOẶC chỉ key string `'desktop' | 'laptop' | 'tablet' | 'mobile'`.
+
+```js
+for (const bp of BREAKPOINTS) {        // bp = full object
+  if (bp.width < curBpDef.width) continue
+}
+const bp = useUIStore().breakpointActive   // bp = key string
+```
+
+Phân biệt qua context. Biến liên quan: `bpKey`, `bpDef`, `curBpDef`, `currentBpKey`.
+
+### `def` — element definition
+Registry record (xem § A).
+
+### `meta` — element metadata
+Raw `meta.js` export (xem § A).
+
+### `ctx` — context (trong dialog)
 Binding info pass qua ui store khi user click TraitAssetInput.
 
 ```js
 ctx = { field, nodeId }
-// field = trait schema entry (vd { key:'padding', target:'style', type:'spacing', ... })
-// nodeId = ID của node đang được edit (vd 'fs_abc12345')
+// field = trait schema entry, nodeId = ID của node đang được edit
 ```
 
-Dialog đọc ctx để biết "tôi đang edit field gì của node nào".
-
----
-
-### `raw` — **raw** (unprocessed) value
-Giá trị thô trước khi formatter hoặc fallback.
+### `raw` — unprocessed value
+Giá trị thô trước formatter / fallback.
 
 ```js
-// Trong TraitField.value:
-const raw = mergeNamespace(node, 'style', bp)[key]   // chưa format
-// raw có thể là '20px 24px 20px 24px' (4-side expanded)
-
-// Sau formatter:
+const raw = mergeNamespace(node, 'style', bp)[key]   // '20px 24px 20px 24px' (expanded)
 const value = formatter(raw)                          // '20px 24px' (collapsed)
 ```
 
-Cũng dùng cho event handler:
-```js
-handleChange(key, val) {
-  const raw = val && val.target !== undefined ? val.target.value : val
-  // raw = string giá trị input thô
-  const n = Number(raw)
-}
-```
-
----
-
 ### `merged` — accumulator object trong cascade
-Result của `mergeNamespace`. Bắt đầu bằng base, accumulate per-bp slots.
+Result của `mergeNamespace`.
+
+### `out` — output accumulator
+Pattern phổ biến trong utility functions.
+
+### `fmt` — formatter
+Function transform value thành display.
+
+### `s` — sides parsed, hoặc viết tắt `style`
 
 ```js
-let merged = { ...base }
-for (const bp of BREAKPOINTS) {
-  if (bp.width < curBpDef.width) continue
-  if (slot) merged = { ...merged, ...slot[ns] }
-}
-return merged
-```
+const s = parseSides('20px 24px')   // { top:20, right:24, bottom:20, left:24 }
 
----
-
-### `out` — **out**put accumulator
-Pattern phổ biến trong `extractTraitDefaults` và utility functions:
-
-```js
-const extractTraitDefaults = (traits) => {
-  const out = { style: {}, config: {}, specials: {}, responsive: {} }
-  // ... loop và fill out
-  return out
-}
-```
-
-`out` thường là object kết quả mà function đang build dần.
-
----
-
-### `fmt` — **f**or**m**a**t**ter
-Function transform value thành display string/object.
-
-```js
-const FORMATTERS_BY_TYPE = {
-  spacing: (v) => formatSides(parseSides(v)),
-}
-const fmt = FORMATTERS_BY_TYPE[this.schema.type]
-return fmt ? fmt(effective) : effective
-```
-
----
-
-### `s` — **s**ides (parsed)
-Object `{top, right, bottom, left}` từ `parseSides`.
-
-```js
-const s = parseSides('20px 24px')
-// s = { top: 20, right: 24, bottom: 20, left: 24 }
-```
-
-Cũng có thể là viết tắt cho `style` trong element template:
-
-```js
 sectionStyle() {
-  const s = this.mergedStyle    // s = mergedStyle (đỡ phải gõ this.mergedStyle)
+  const s = this.mergedStyle        // s = style đỡ phải gõ this.mergedStyle
   return { padding: s.padding }
 }
 ```
 
----
-
-### `n` — **n**umber (sau Number())
+### `n` — number (sau `Number()`)
 Coercion result, có thể NaN.
 
-```js
-const n = Number(raw)
-const next = Number.isFinite(n) ? n : 0
-```
+### `f` — field (trong loop)
+Trait field schema entry.
 
----
-
-### `f` — **f**ield (trong loop)
-Trait field schema entry — short form trong inner loops:
-
-```js
-for (const f of fields) seedField(out, f)
-// f = { key, type, target, default, ... }
-```
-
----
-
-### `cur` / `curBpDef` — **cur**rent breakpoint
-Đang hover/edit ở bp nào.
-
-```js
-const cur = BREAKPOINTS.find((b) => b.key === currentBpKey)
-if (!cur) return result
-```
-
----
+### `cur` / `curBpDef` — current breakpoint
 
 ### `_lastCommitted` — instance field, **không reactive**
-Track giá trị vừa được commit để skip self-echo loop.
+Track giá trị vừa commit để skip self-echo loop trong widget watch.
 
-```js
-data() { return { paddings: {...} } }   // không khai _lastCommitted ở đây
-// → assign trực tiếp this._lastCommitted = ... → plain instance field
-methods: {
-  commit() {
-    const value = formatSides(this.paddings)
-    this._lastCommitted = value           // non-reactive
-    applyTrait(...)
-  }
-}
-watch: {
-  currentValue(val) {
-    if (val === this._lastCommitted) return  // skip echo
-    this.syncFromValue(val)
-  }
-}
-```
+### `rec` — PatchRecorder instance
+Dùng trong `_commit(label, mutateFn)` — `mutateFn(rec, state)` mutate state qua `rec.set/insert/remove`.
 
-Prefix `_` ở Vue convention = "internal, non-reactive".
+### `fwd` / `inv` — forward / inverse patches
+Mảng patch op apply để redo / undo.
 
 ---
 
-## Key functions
+## C. Key functions
 
 ### `mergeNamespace(node, ns, currentBpKey) → object`
 **File**: `composable/editor_v2/mergeNode.js`
 
-Merge base + per-bp slots cho 1 namespace, theo cascade desktop-first.
+Merge base + per-bp slots cho 1 namespace, cascade desktop-first 2-phase (down → up fallback). Skip key trong `NON_CASCADING`.
 
-```js
-mergeNamespace(node, 'style', 'mobile')
-// → { color: '#333', padding: '20px 15px', ... }
-```
+### `mergeStateMap(node, state, currentBpKey) → object`
+**File**: `composable/editor_v2/mergeNode.js`
 
-Dùng ở:
-- `mixins/nodeBase.mergedStyle`, `mergedConfig`
-- `EdgeOverlays.mergedStyle`
-- `TraitField.value`
-- `PaddingDialog.currentValue`
-
----
+Cascade per-bp cho `config[state]` map (1 level sâu hơn `mergeNamespace`). Dùng bởi `statefulNode.stateCss`.
 
 ### `isBreakpointMap(value) → boolean`
 **File**: `composable/editor_v2/mergeNode.js`
 
-Check object có phải responsive map (có key `base`/`_`/bp name) hay không.
-
-```js
-isBreakpointMap({ base: '20px', mobile: '15px' })   // true
-isBreakpointMap({ x: 0, y: 4 })                     // false (complex value)
-isBreakpointMap('20px')                              // false (primitive)
-```
-
-Dùng ở:
-- `registry.seedField` — split per-bp hay ghi vào base
-- `mergeNode.resolveDefaultForBp` — cascade hay return as-is
-
----
+Check object có phải responsive map (`base`/bp name).
 
 ### `resolveDefaultForBp(def, currentBpKey) → value`
 **File**: `composable/editor_v2/mergeNode.js`
 
-Resolve schema default value cho bp hiện tại, dùng cascade logic giống mergeNamespace.
+Resolve schema default cho bp hiện tại, dùng cascade.
 
-```js
-resolveDefaultForBp({ base: '20px 24px', mobile: '20px 15px' }, 'mobile')
-// → '20px 15px'
+### `getStyle(node, key, fallback?)` / `getConfig(node, key, fallback?)`
+**File**: `composable/editor_v2/get.js`
 
-resolveDefaultForBp({ base: '20px 24px', mobile: '20px 15px' }, 'tablet')
-// → '20px 24px' (cascade từ base)
-
-resolveDefaultForBp('20px', 'mobile')                  // → '20px' (primitive)
-resolveDefaultForBp({ x:0, y:4 }, 'mobile')           // → { x:0, y:4 } (complex)
-```
-
-Dùng ở: `TraitField.value` (display fallback).
-
----
-
-### `applyTrait(nodeId, field, value, opts?)`
-**File**: `stores/editor_v2/node.js` (action)
-
-Generic dispatcher — route value vào đúng `changeStyle` / `changeConfig` / `changeSpecials` theo `field.target`.
-
-```js
-nodeStore.applyTrait('fs_xxx', paddingField, '20px 24px')
-// → changeStyle('fs_xxx', { padding: '20px 24px' })
-
-nodeStore.applyTrait('h_yyy', textField, 'Hello')
-// → changeSpecials('h_yyy', { text: 'Hello' })
-
-nodeStore.applyTrait('fs_xxx', paddingField, '0', { breakpoint: 'base' })
-// → changeStyle('fs_xxx', { padding: '0' }, { breakpoint: 'base' })
-```
-
-Dùng ở: dialogs (PaddingDialog), trait panel custom widgets.
-
----
+Đọc 1 key tại active breakpoint từ UI store, fallback nếu undefined.
 
 ### `changeStyle(id, patch, opts?)` / `changeConfig` / `changeSpecials`
-**File**: `stores/editor_v2/node.js` (action)
+**File**: `stores/editor_v2/node.js`
 
-Per-namespace writer.
+| Action | Default target | Hỗ trợ per-bp? | Stateful? |
+|---|---|---|---|
+| `changeStyle` | per-key qua `defaultStyleSlot` (STYLE_ASYNC) | Yes | Yes |
+| `changeConfig` | per-key qua `defaultConfigSlot` (CONFIG_ASYNC) | Yes | Yes |
+| `changeSpecials` | base (luôn) | No | No |
 
-| Action | Default target | Hỗ trợ per-bp? |
-|---|---|---|
-| `changeStyle` | current bp (`responsive[bp].style`) | Yes |
-| `changeConfig` | base (`data.config`) | Yes (opt-in qua `{breakpoint:'current'}`) |
-| `changeSpecials` | base (`data.specials`) | No (luôn base) |
-
-`opts.breakpoint`:
-- `'current'` (default cho style) → current bp slot
-- `'base'` (default cho config) → base slot
-- `'mobile'` / `'tablet'` / etc. → explicit slot
-- omit → dùng default của action
+`opts.breakpoint`: `'current'` / `'base'` / `'mobile'` / explicit slot key. `opts.stateful: true` → `_routeState` divert stateful writeKey vào `config[state]`.
 
 Patch key với `value === undefined` → REMOVE key khỏi target slot.
 
----
+### `setSelected(id)` / `setState(value)` / `setIndicator(...)`
+**File**: `stores/editor_v2/node.js`
 
-### `getFieldComponent(field) → Vue component | null`
-**File**: `components/editor_v2/components/trait/fields/registry.js`
+Selection / variant / drag indicator setters. KHÔNG qua `_commit` (UI state, không cần history).
 
-2-layer resolve:
-1. `field.component` (string) → `FIELD_COMPONENTS[name]`
-2. `field.type` → `COMPONENT_BY_TYPE[type]`
+### `addNodeTree(tree, parentId, index)` / `move(...)` / `reorderChildren(...)` / `ungroup(...)` / `remove(...)` / `duplicate(...)`
+**File**: `stores/editor_v2/node.js`
 
----
-
-### `getFieldIcon(field) → Vue component | null`
-**File**: như trên
-
-Resolve icon cho slot `#icon` của TraitAssetInput.
-1. `field.icon` (string) → `ICON_COMPONENTS[name]`
-2. `field.props.dialogType` → `DIALOG_ICON_BY_TYPE[dialogType]` → `ICON_COMPONENTS`
-
----
+Tree mutations — đều qua `_commit` → có history entry.
 
 ### `getDef(type) → def | null`
 **File**: `composable/editor_v2/registry.js`
 
-Lookup element definition theo type string.
-
-```js
-const def = getDef('flex-section')
-// def.component, def.factory, def.label, def.defaults, def.traits, ...
-```
-
----
+Lookup element definition.
 
 ### `factoryFor(type, overrides) → Node | null`
-**File**: như trên
-
-Create node mới qua wrapped factory (đã seed defaults).
-
-```js
-const node = factoryFor('heading', { style: { color: 'red' } })
-// node.data.style = { color: 'red', /* + defaults */ }
-```
-
----
+Create node qua wrapped factory.
 
 ### `getDefaultsFor(type) → { style, config, specials, responsive } | null`
-**File**: như trên
+Expose defaults map cho "Reset to default" UI.
 
-Expose defaults map cho trait panel "Reset to default" UI sau này.
+### `getAllowedKeys(type, ns) → Set | null`
+Whitelist writeKey cho guard.
 
-```js
-const defaults = getDefaultsFor('flex-section')
-nodeStore.applyTrait(id, paddingField, defaults.style.padding)
-```
+### `isRootOnlyType(type)`, `isLockedType(type)`, `canDropInto(srcType, parentType)`
+**File**: `composable/editor_v2/registry.js`
 
----
+Drop / lock rule helpers.
+
+### `listSidebar() → def[]`
+Filter `showInSidebar` cho sidebar pickers.
 
 ### `parseSides(value) → { top, right, bottom, left }`
 **File**: `composable/editor_v2/cssShorthand.js`
 
-Parse CSS shorthand thành 4 numeric sides (px).
-
 ```js
 parseSides('20px 24px')         // { top:20, right:24, bottom:20, left:24 }
 parseSides('10px 20px 30px')    // { top:10, right:20, bottom:30, left:20 }
-parseSides('5px')               // { top:5, right:5, bottom:5, left:5 }
-parseSides(null)                // { top:0, right:0, bottom:0, left:0 }
 ```
 
----
-
 ### `formatSides({top, right, bottom, left}) → string`
-**File**: như trên
-
 Compose 4 sides thành CSS shorthand ngắn nhất.
 
 ```js
 formatSides({top:20, right:20, bottom:20, left:20})    // '20px'
 formatSides({top:20, right:24, bottom:20, left:24})    // '20px 24px'
-formatSides({top:10, right:20, bottom:30, left:20})    // '10px 20px 30px'
-formatSides({top:10, right:20, bottom:30, left:40})    // '10px 20px 30px 40px'
 ```
-
----
-
-### `isBreakpointMap(value) → boolean`
-Đã giải thích ở trên.
-
----
 
 ### `getBreakpoint(key)`, `getBreakpointWidth(key)`, `isMobileBreakpoint(key)`
 **File**: `composable/editor_v2/constants.js`
 
-Helpers tra cứu breakpoint metadata.
-
-```js
-getBreakpoint('mobile')            // { key:'mobile', label:'Mobile', width:360, isMobile:true }
-getBreakpointWidth('tablet')       // 768
-isMobileBreakpoint('mobile')       // true
-isMobileBreakpoint('tablet')       // false
-```
-
----
-
 ### `resolveBreakpointSlot(target, currentBp) → bpKey | null`
 **File**: `composable/editor_v2/createNode.js`
 
-Convert sentinel/key thành slot key cho `_writeNamespace`.
+Convert sentinel/key thành slot key.
 
 ```js
 resolveBreakpointSlot('current', 'tablet')   // 'tablet'
 resolveBreakpointSlot('base', 'tablet')      // null  (→ base slot)
 resolveBreakpointSlot('mobile', 'tablet')    // 'mobile'  (explicit)
-resolveBreakpointSlot(null, ...)             // null
 ```
+
+### `defaultStyleSlot(key)` / `defaultConfigSlot(key) → 'current' | 'base'`
+**File**: `composable/editor_v2/responsivePolicy.js`
+
+Per-key sentinel cho default slot — đọc `STYLE_ASYNC` / `CONFIG_ASYNC` set.
+
+### `createNode(props)` / `createNodeTree(def)` / `wrapInBlankSection(tree)` / `buildFromDef(def)` / `genId(type)`
+**File**: `composable/editor_v2/createNode.js`
+
+Node + tree builders.
+
+### `buildElementSchema(meta) → JSON Schema`
+**File**: `components/editor_v2/components/trait/fields/definitions.js`
+
+Walk traits → mirror per-bp + state-overrides → JSON Schema.
+
+### `buildSatelliteSchema(satMeta)`
+Slim schema cho satellite (no events/state).
+
+### `collectStatefulWriteKeys(meta) → Set`
+WriteKey eligible per-state, theo `meta.states.groups`.
+
+### `applyStateSchema(schema, meta)`
+Augment schema với state-overrides cho mỗi variant.
+
+### `validateEvents(events, ns, defConstraint, opts)`
+**File**: `components/editor_v2/components/trait/fields/eventDefinitions.js`
+
+Structural validate mảng events.
+
+### `dumpRegistryForLLM(opts) → { type → { schema, ai, ... } }`
+**File**: `composable/editor_v2/ai/schema.js`
+
+Walk registry + lazy-load `ai.js` → map cho LLM tool input.
+
+### `validateDef(def, depth?, parentType?) → string[]`
+**File**: `composable/editor_v2/ai/validate.js`
+
+Validate 1 def shape + type tồn tại + isRootOnly placement + writeKey hợp lệ. Empty = valid.
+
+### `commitAISectionToCanvas(def, opts)` / `commitAISectionsToCanvas(sections, opts)`
+**File**: `composable/editor_v2/ai/commit.js`
+
+Apply AI output: validate → `createNodeTree(def)` → `addNodeTree(tree, parentId, index)`.
+
+### `commitAISite(siteDef, opts)`
+**File**: `composable/editor_v2/ai/commitSite.js`
+
+Multi-page commit qua pageApi (headless, không đụng node store).
+
+### `buildPagePayload(sections) → payload`
+**File**: `composable/editor_v2/ai/buildPage.js`
+
+Headless build payload đúng shape `serialize()` để POST trực tiếp.
 
 ---
 
-## File mapping cheat sheet
+## D. File mapping cheat sheet
 
 | Folder | File | Trách nhiệm | Khi nào sửa |
 |---|---|---|---|
-| `composable/editor_v2/` | `constants.js` | BREAKPOINTS, ROOT_NODE | Thêm bp mới, đổi default |
-| | `createNode.js` | createNode, createNodeTree, wrapTree, resolveBreakpointSlot | Hiếm — chỉ shape Node thay đổi |
-| | `mergeNode.js` | mergeNamespace, isBreakpointMap, resolveDefaultForBp | Hiếm — cascade logic |
-| | `registry.js` | registerElement, getDef, factoryFor, defaults extraction | Khi thêm field schema property mới |
-| | `registerElements.js` | Eager glob nodes/*.vue | Không sửa |
-| | `nodeFactory.js` | Composite tree builders | Thêm composite shortcut |
+| `composable/editor_v2/` | `constants.js` | BREAKPOINTS, ROOT_NODE, DEFAULT_BREAKPOINT, PLACEHOLDER_IMAGE | Thêm bp mới |
+| | `createNode.js` | createNode/createNodeTree/wrapTree/genId/buildFromDef | Hiếm — chỉ Node shape thay đổi |
+| | `mergeNode.js` | mergeNamespace, mergeStateMap, isBreakpointMap, resolveDefaultForBp, NON_CASCADING | Cascade logic |
+| | `responsivePolicy.js` | STYLE_ASYNC / CONFIG_ASYNC sets | Đổi default slot per-key |
+| | `get.js` | getStyle / getConfig helpers | Hiếm |
+| | `registry.js` | registerElement, getDef, factoryFor, listSidebar, isRootOnlyType, isLockedType, canDropInto, getAllowedKeys, getDefaultsFor | Khi thêm field schema property mới |
+| | `registerElements.js` | Eager glob nodes/*/index.vue | Không sửa |
+| | `nodeFactory.js` | Composite builders (buildBlankSection, wrapInBlankSection, buildRowSection) | Thêm composite shortcut |
+| | `templateRegistry.js` | listTemplates, getTemplate, buildTemplate | Hiếm |
+| | `templates/<id>.js` | Page template data | Thêm template mới |
 | | `Positioner.js` | Drop indicator engine | Drag-drop logic |
 | | `cssShorthand.js` | parseSides, formatSides | Hiếm |
-| | `mixins/nodeBase.js` | props, isSelected, mergedStyle/Config/Specials | Thêm mixin computed chung |
+| | `patchRecorder.js` | PatchRecorder + compactPatches + applyPatches | Hiếm — primitive history |
+| | `mixins/nodeBase.js` | props, isSelected, mergedStyle/Config/Specials, commonStyleData | Thêm mixin computed chung |
 | | `mixins/nodeContainer.js` | + isEmpty, isDropTarget, onDragOver | |
 | | `mixins/draggableNode.js` | onMoveDragStart, onMoveDragEnd | |
-| `stores/editor_v2/` | `node.js` | Tree state + actions (add/move/remove/duplicate/changeX/applyTrait) | Thêm action store |
+| | `mixins/editableText.js` | contenteditable opt-in via rule | |
+| | `mixins/statefulNode.js` | stateCss injection | |
+| | `mixins/satelliteOwner.js` | ensureSatellite lazy create | |
+| | `ai/schema.js` | dumpRegistryForLLM | AI pipeline |
+| | `ai/validate.js` | validateDef / validatePage / validateSite | |
+| | `ai/commit.js` | commitAISectionToCanvas (single canvas) | |
+| | `ai/commitSite.js` | commitAISite (multi-page persist) | |
+| | `ai/buildPage.js` | buildPagePayload (headless) | |
+| | `ai/aiChat.js` | createAiChatSession (UI state machine) | |
+| | `ai/aiSiteApi.js` | REST HTTP transport | |
+| | `ai/aiSiteChannel.js` | Phoenix WS transport | |
+| | `ai/aiSiteStream.js` | Runner orchestrator | |
+| | `ai/mockStream.js` | Local mock transport (dev/test) | |
+| | `ai/protocol.js` | AI_SITE_TOPIC / AI_EVENTS / AI_COMMANDS / AI_ROUTES | |
+| | `ai/selftest.js` | runAiGenSelfTest smoke test | |
+| | `ai/BACKEND_PLAN.md` | Spec BE partner | |
+| `stores/editor_v2/` | `node.js` | Tree state + actions + _commit chokepoint | Thêm action |
 | | `dnd.js` | Drag session + Positioner lifecycle | |
-| | `editor.js` | UI state (breakpoint, sidebar, dialogs) | |
-| `components/editor_v2/nodes/` | `XxxV2.vue` | Element SFC + meta export | Thêm element |
+| | `editor.js` | UI store (`useUIStore`, alias `'ui'`) | |
+| | `history.js` | Timeline + undo/redo + coalesce | |
+| | `page.js` | useEditorPageStore — load/save/switch page | |
+| | `pageList.js` | usePageListStore — site pages CRUD | |
+| | `globalStyling.js` | useGlobalStylingStore — site-wide tokens | |
+| `components/editor_v2/` | `PageWrapper.vue` | Editor entry + canvas | |
+| | `Header.vue` | Top bar (bp tabs, undo/redo, AI button) | |
+| | `Sidebar.vue` | Left sidebar shell | |
+| | `Toolbar.vue` | Right context toolbar | |
+| | `Trait.vue` | Right trait panel container | |
+| `components/editor_v2/nodes/` | `<name>/index.vue` | Element SFC + factory + icon | Thêm element |
+| | `<name>/meta.js` | Pure data (type, traits, rules, defaults) | |
+| | `<name>/ai.js` | AI hints (optional sidecar) | |
 | `components/editor_v2/elements/` | `NodeRenderer.vue` | Switcher đọc registry | Hiếm |
-| | `EdgeOverlays.vue` | Padding/margin SVG overlay | Hover UX |
+| | `EdgeOverlays.vue` | Padding/margin SVG overlay | |
 | | `ElementToolbar.vue` | Floating toolbar | |
 | | `ElementDragV2.vue` | Sidebar drag wrapper | |
-| | `IndicatorOverlay.vue` | Drop indicator UI | |
-| `components/editor_v2/components/trait/` | `fields/registry.js` | FIELD_COMPONENTS, COMPONENT_BY_TYPE | Thêm field widget type |
-| | `components/TraitField.vue` | Generic field renderer | Hiếm |
+| | `IndicatorOverlay.vue` | Drop indicator | |
+| | `NodePlaceholder.vue` | Empty container placeholder | |
+| `components/editor_v2/components/` | `PageEmpty.vue` | Canvas-trống placeholder | |
+| | `SettingDialog.vue` | Popover hub | |
+| | `color_picker/` | Color picker stack | |
+| | `sidebar/SidebarLayer.vue` | Layers tree (đọc registry) | |
+| | `sidebar/LayerItem.vue` | 1 layer row | |
+| | `sidebar/LayerGroupWrapper.vue` | Header/Footer/Body group | |
+| | `sidebar/Elements*Picker.vue` | 10 picker per category | |
+| `components/editor_v2/components/trait/` | `ClassTrait.vue` | Custom class field | |
+| | `components/TraitField.vue` | Generic field dispatcher | |
 | | `components/TraitWrapper.vue` | Group label wrapper | |
 | | `components/TraitItemWrapper.vue` | Field label wrapper | |
-| | `components/TraitAssetInput.vue` | Dialog trigger | |
-| `components/editor_v2/components/dialog/` | `PaddingDialog.vue` | 4-input padding editor | Tham khảo cho dialog mới |
-| `components/editor_v2/` | `Trait.vue` | Trait panel container | Layout tab/sidebar |
-| | `Header.vue` | Top bar với bp tabs | |
-| | `PageWrapper.vue` | Editor entry + canvas | |
-| | `SettingDialogs.vue` | Mount tất cả dialog components | Thêm dialog mới |
+| | `components/TraitAssetInput.vue` | Asset dialog trigger | |
+| | `components/MediaUploader.vue` | File upload widget | |
+| | `components/fields/*.vue` | 37 trait widget | Thêm widget mới |
+| | `components/fields/events/*.vue` | UrlEvent/PageEvent/PopupEvent payload editors | |
+| | `fields/definitions.js` | Re-export DEFINITIONS_DATA + builders | Schema builder API |
+| | `fields/defs/*.js` | DEFINITIONS_DATA chia domain | Thêm trait def |
+| | `fields/styleRenderers.js` | (node) → CSS map | Thêm CSS composition |
+| | `fields/registry.js` | VUE_COMPONENTS map | Bind def → Vue |
+| | `fields/schema_helpers.js` | JSON Schema builders | Thêm builder type |
+| | `fields/enum.js` | TARGET / TRAIT / TRIGGER / ACTION constants | |
+| | `fields/eventDefinitions.js` | EVENT_DEFINITIONS_DATA + validateEvents | Append action |
+| | `fields/events/engine.js` | createEventApi | |
+| | `fields/events/actions/*.js` | goToUrl / openPage / openPopup | Thêm action mới |
+| `assets/editor_v2/` | `node.css` | Global CSS | |
 
 ---
 
-## Naming conventions
+## E. Naming conventions
 
 | Pattern | Ví dụ | Ý nghĩa |
 |---|---|---|
 | `useXxxStore()` | `useNodeStore()` | Pinia store factory |
-| `XxxV2.vue` | `HeadingV2.vue` | Element SFC (suffix V2 phân biệt với v1) |
+| Folder `snake_case` | `flex_block/`, `image_comparison/` | Element folder |
+| Type `kebab-case` | `'flex-block'`, `'image-comparison'` | meta.type string |
+| Trait def `snake_case` | `'width_select'`, `'bg_image'` | DEFINITIONS_DATA key |
+| writeKey camelCase / CSS-style | `padding`, `--node-width`, `htmlTag` | Key thực ghi vào node |
 | `WkXxx` | `WkInput`, `WkSelect` | webcake-ui-kit components |
 | `wk-xxx` | `wk-flex-block` | CSS class prefix |
 | `wk-xxx--state` | `wk-flex-block--drop-active` | BEM modifier |
 | `wk-xxx__part` | `wk-node-placeholder__text` | BEM element |
-| `data-node-id` | `:data-node-id="nodeId"` | DOM data attr cho Positioner query |
+| `data-node-id` | `:data-node-id="nodeId"` | DOM data attr cho Positioner |
 | `data-node-type` | `data-node-type="flex-section"` | DOM data attr |
 | `meta`, `def`, `field`, `attr` | – | Trait schema vocabulary |
-| `ctx`, `_lastCommitted` | – | Internal/dialog state |
+| `_<name>` prefix | `_commit`, `_writeNs`, `_routeState`, `_lastCommitted` | Internal/non-reactive |
 
 ---
 
-## Anti-patterns — DON'T
+## F. Stores quick-ref
+
+| Store | ID | Hot path | State chính |
+|---|---|---|---|
+| `useNodeStore` | `editor_v2_node` | YES | `nodes`, `events.{selected,hovered,dragged,indicator,state}` |
+| `useDndStore` | `editor_v2_dnd` | YES | `dragTarget`, `draggedElementShadow`, `positioner` |
+| `useUIStore` | `ui` | YES | `breakpointActive`, `leftSidebarKeyActive`, `settingDialogs[]` |
+| `useHistoryStore` | `editor_v2_history` | YES | `timeline`, `pointer`, `_coalesce` |
+| `useEditorPageStore` | `editor_v2_page` | NO | `pageId`, `loading`, `dirty`, `lastSavedAt` |
+| `usePageListStore` | `editor_v2_page_list` | NO | `siteId`, `pages[]` |
+| `useGlobalStylingStore` | `editor_v2_global_styling` | NO | `presets` (site-wide tokens) |
+
+---
+
+## G. Anti-patterns — DON'T
 
 - ❌ `<element :is>` import trực tiếp element con — phá registry. Luôn qua `<NodeRenderer>`.
 - ❌ Hardcoded type string trong logic (vd `if (type === 'flex-section')`). Dùng `getDef(type).rules.isRootOnly` hoặc tương tự.
-- ❌ Mutate `node.data.style[key] = v` trực tiếp. Dùng `changeStyle` / `applyTrait`.
-- ❌ Index assignment vào mảng reactive (`parent.data.nodes[0] = id`). Dùng `splice`/`push`/reassign.
+- ❌ Mutate `node.data.style[key] = v` trực tiếp. Dùng `changeStyle / applyTrait`.
+- ❌ Index assignment vào mảng reactive (`parent.data.nodes[0] = id`). Dùng `rec.insert/remove` qua `_commit`.
 - ❌ Import element SFC từ `registry.js`. Phá cycle rule.
-- ❌ `data.props` (đã xoá). Dùng `style`/`config`/`specials`.
+- ❌ `data.props` (đã xoá). Dùng `style/config/specials/events/bindings`.
 - ❌ Numeric breakpoint key (`responsive[1440]`). Dùng text key (`responsive.laptop`).
-- ❌ Default cho field complex value mà có key trùng bp name. Wrap qua `{ base: {...} }`.
+- ❌ `meta.js` import `@/` alias. Phải relative (CI/build script `node` thuần dùng).
+- ❌ Trait default complex value mà có key trùng bp name. Wrap qua `{ base: {...} }`.
+- ❌ Đặt component path import trong `meta.js`. Vue-free.
+- ❌ Skip `_commit` để mutate state. Phá undo/redo.
+- ❌ Static `import('@/components/editor_v2/ai/schema')` vào runtime bundle. AI gen chỉ lazy-load.
+- ❌ Skip `validateDef` trước commit AI output. Hallucinate type/keys silent corrupt state.
+- ❌ Stateful write KHÔNG truyền `opts.stateful: true`. State map không được route.
