@@ -1,19 +1,24 @@
-# 04 — Selection, Toolbar, Edge Overlays
+# 04 — Selection, Toolbar, Edge Overlays, Layers
 
-UI nổi (floating) phục vụ tương tác với node đã chọn: ElementToolbar, EdgeOverlays.
+UI nổi (floating) phục vụ tương tác với node đã chọn: ElementToolbar, EdgeOverlays. + Layers panel.
 
 ## 1. Selection state
 
 Sống trong `nodeStore.events.selected: string[]`. Array để hỗ trợ multi-select tương lai, hiện single-select.
 
+`events.state: 'default' | 'hover' | 'active' | null` — active variant cho selected node (xem statefulNode mixin trong [`01-architecture.md`](./01-architecture.md) §5).
+
 ### Set selection
 
 ```js
 // nodeStore actions
-setSelected(id)    { this.events.selected = id ? [id] : [] }
+setSelected(id) {
+  this.events.selected = id ? [id] : []
+  this.events.state = id && getDef(this.nodes[id]?.data?.type)?.states?.base || null
+}
 addSelected(id)    { ... push không duplicate }
 removeSelected(id) { ... splice }
-clearSelected()    { this.events.selected = [] }
+clearSelected()    { this.events.selected = []; this.events.state = null }
 ```
 
 ### Trigger
@@ -21,10 +26,11 @@ clearSelected()    { this.events.selected = [] }
 | Hành động | Code | Hiệu ứng |
 |---|---|---|
 | Click element | `onClick` mixin → `setSelected(nodeId)` | Outline + Toolbar + EdgeOverlays |
-| Click empty canvas | `RootCanvasV2.onClickRoot` (`@click.self`) → `clearSelected()` | Ẩn tất cả overlay |
+| Click empty canvas | `RootCanvas.onClickRoot` (`@click.self`) → `clearSelected()` | Ẩn tất cả overlay |
 | Bắt đầu drag-move | `onMoveDragStart` → `setSelected(nodeId)` | Element được select trước khi drag |
-| Click trong Layers panel | `LayerItem.onClick` → `setSelected(nodeId)` | Outline + cuộn canvas tới element (tương lai) |
+| Click trong Layers panel | `LayerItem.onClick` → `setSelected(nodeId)` | Outline + cuộn canvas tới element |
 | Click "+" sibling button trong EdgeOverlays | `addSibling` → `setSelected(newId)` | Element mới được select ngay |
+| Đổi variant trong toolbar | `setState('hover')` | Trait edit dispatch vào `config[state]` |
 
 ### Visual
 
@@ -35,7 +41,7 @@ CSS global `node.css`:
   outline-offset: -2px;
 }
 .wk-flex-block.wk-node-selected.wk-flex-block--drop-active {
-  outline: none;     /* tránh outline đôi khi vừa selected vừa drop-active */
+  outline: none;
 }
 ```
 
@@ -76,29 +82,28 @@ beforeUnmount() {
 }
 ```
 
-rAF loop cập nhật vị trí mỗi frame để toolbar follow theo:
-- Scroll canvas (selected element di chuyển)
-- Resize element (drag-to-resize)
-- Browser resize
-
-Cost ~1ms/frame khi selected, không khi không selected.
+rAF loop cập nhật vị trí mỗi frame để toolbar follow theo scroll / resize / drag-resize.
 
 ### Template
 
 ```vue
 <div v-if="show" class="wk-toolbar" :style="position">
-  <button @click="duplicate"><Copy /></button>
-  <button @click="remove"><Trash /></button>
+  <span class="wk-toolbar__label">{{ typeLabel }}</span>
   <span class="wk-toolbar__handle"
         draggable="true"
         @dragstart="onDragHandleStart"
-        @dragend="onDragHandleEnd"
-  ><Move /></span>
-  <span class="wk-toolbar__label">{{ typeLabel }}</span>
+        @dragend="onDragHandleEnd"><Move /></span>
+  <button @click="duplicate"><Copy /></button>
+  <button @click="ungroup" v-if="canUngroup"><GroupOff /></button>
+  <button @click="remove" :disabled="isLocked"><Trash /></button>
 </div>
 ```
 
-Drag handle (icon Move) khi user drag → bắt đầu drag-move giống drag thẳng vào element:
+`isLocked = getDef(selectedNode.data.type)?.rules?.locked` — trash + duplicate disabled cho locked.
+
+`canUngroup = node.data.isCanvas && nodes.length > 0 && parent !== ROOT` (Block-level only).
+
+Drag handle (icon Move) → bắt đầu drag-move thay vì grab body:
 ```js
 onDragHandleStart(e) {
   const shadow = createShadow(e, [this.selectedNode.dom])
@@ -112,8 +117,6 @@ onDragHandleEnd(e) {
 }
 ```
 
-Lợi: user có thể chọn element rồi grab handle (không phải grab body element), dễ hơn khi element nhỏ hoặc bị child che.
-
 ### typeLabel
 
 Đọc từ registry:
@@ -124,7 +127,24 @@ typeLabel() {
 }
 ```
 
-Thêm element mới = label tự xuất hiện trong toolbar.
+### State picker (nếu stateful)
+
+Khi `meta.states.variants` tồn tại, toolbar hiện thêm WkSegmented switch các variant:
+
+```vue
+<WkSegmented
+  v-if="stateVariants"
+  :model-value="state"
+  :options="stateVariants"
+  @update:model-value="onSetState"
+/>
+```
+
+```js
+onSetState(value) { useNodeStore().setState(value) }
+```
+
+User edit trait khi state ≠ base → `changeStyle(id, patch, { stateful: true })` → `_routeState` divert stateful writeKey vào `config[state]` map.
 
 ## 3. EdgeOverlays
 
@@ -133,20 +153,22 @@ Thêm element mới = label tự xuất hiện trong toolbar.
 ### Khi nào hiển thị
 
 - `selected` có 1 node
-- Node `type` không phải `root` hoặc `heading` (chỉ container có ý nghĩa)
+- `getDef(type)?.rules?.edgeOverlay !== false` (cho phép element opt-out)
 - Node có DOM ref (đã mount)
+
+Element opt-out trong `meta.rules.edgeOverlay`:
+```js
+rules: { edgeOverlay: { padding: false, marginSides: { left: false } } }
+```
 
 ### Anatomy
 
 ```
-Selected element rect:
 ┌─────────────────────────────────────┐  ← MARGIN strip (4 mép, ra ngoài rect)
 │ ╔═══════════════════════════════╗   │
 │ ║ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ║   │  ← PADDING strip (4 mép, vào trong rect)
 │ ║ ░ ┌─────────────────────────┐ ░ ║   │
-│ ║ ░ │                         │ ░ ║   │
-│ ║ ░ │   element content area  │ ░ ║   │
-│ ║ ░ │                         │ ░ ║   │
+│ ║ ░ │  element content area   │ ░ ║   │
 │ ║ ░ └─────────────────────────┘ ░ ║   │
 │ ║ ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ ║   │
 │ ╚═══════════════════════════════╝   │
@@ -157,24 +179,23 @@ Mỗi strip:
 - SVG hatched pattern (gạch chéo) background
 - Dimension arrow 2 đầu chỉ chiều rộng/cao
 - Số `px` ở giữa
-- Border nhạt 3 mép còn lại (để nhìn ra strip tách biệt)
+- Border nhạt 3 mép còn lại
 
 ### Hover-only
 
 ```js
 hoveredEdge() {
-  // Tính theo (cursor x, y) vs rect
   // - cursor INSIDE rect: padding side hovered (gần edge nào nhất)
   // - cursor OUTSIDE rect (trong margin zone): margin side
   // - threshold: PADDING_REACH = 40px (trong), MARGIN_REACH = 80px (ngoài)
 }
 ```
 
-Chỉ render strip của edge đang hover (1 trong 4: top/right/bottom/left). User di chuột tới đâu mới hiện đó, không chiếm 4 strip cùng lúc.
+Chỉ render strip của edge đang hover.
 
 ### Edit padding/margin
 
-Click vào strip → mở popup nhập px hoặc kéo strip để resize. Apply qua:
+Click vào strip → mở popover nhập px hoặc kéo strip để resize. Apply qua:
 ```js
 nodeStore.changeStyle(id, { padding: '20px 24px 20px 24px' })
 // Default opts.breakpoint='current' → ghi vào responsive[currentBp].style.padding
@@ -191,11 +212,9 @@ showInsertButtons() {
 }
 ```
 
-Nút "+" ở 2 đầu trên/dưới Section. Click → tạo Section mới ngay trước/sau.
+Nút "+" ở 2 đầu trên/dưới Section. Click → tạo Section mới qua `addNodeTree(buildBlankSection(), ROOT, idx)`.
 
-Lý do chỉ Section: page-level Insert. Block đã có drop affordance (placeholder, drag-drop). Section là "ô lớn" nên cần shortcut nhanh để thêm section liền kề.
-
-### Implementation chính
+### Implementation
 
 ```js
 data() {
@@ -220,7 +239,7 @@ mounted() {
 }
 ```
 
-`right`/`bottom` quan trọng: `hoveredEdge` đọc chúng để check cursor side. Trước có bug quên compute → strip top hiện được, các strip khác null.
+`right`/`bottom` quan trọng: `hoveredEdge` đọc chúng để check cursor side.
 
 ### SVG pattern & arrows
 
@@ -245,90 +264,91 @@ mounted() {
 
 `orient="auto"` quan trọng — `auto-start-reverse` render inconsistently. Dùng 2 marker với path khác hướng.
 
-### Margin "+ border ngoài 3 cạnh"
-
-Khi hover margin top:
-- Strip top: SVG pattern + arrows + label
-- 3 cạnh còn lại (right, bottom, left): vẽ border màu nhạt (1px solid rgba blue 0.3) ngoài rect — để user nhận ra "đây là strip ngoài, không phải padding"
-
-Code:
-```vue
-<div class="wk-margin-strip wk-margin-strip--top" :style="{...}">
-  <svg>...</svg>
-</div>
-<div class="wk-margin-frame" :style="{
-  top: rect.top - marginTop + 'px',
-  left: rect.left - marginLeft + 'px',
-  width: rect.width + marginLeft + marginRight + 'px',
-  height: rect.height + marginTop + marginBottom + 'px',
-  border: '1px solid rgba(63,141,255,0.3)',
-}" v-if="hoveredSide === 'margin-top'"/>
-```
-
-### Padding side phải full height
-
-Bug trước: padding top/bottom strip full width, nhưng padding left/right chỉ cao = vùng padding ngang.
-
-Fix: left/right strip phải full height của element (kể cả padding top/bottom area) để nhìn liền mạch giống Pagefly.
-
-```css
-.wk-padding-strip--left {
-  height: 100%;        /* full element */
-  width: var(--pad-left);
-}
-```
-
 ## 4. Layers panel
 
-`src/components/editor_v2/components/sidebar/PageContents.vue` + `LayerItem.vue` — tree view của toàn bộ nodes.
+`src/components/editor_v2/components/sidebar/SidebarLayer.vue` + `LayerGroupWrapper.vue` + `LayerItem.vue` — tree view của toàn bộ nodes.
 
 ```vue
-<!-- PageContents.vue -->
-<div>
-  <LayerItem :node-id="ROOT_NODE" :depth="0" />
-</div>
+<!-- SidebarLayer.vue (a.k.a PageContents) -->
+<template>
+  <SidebarWrapper :width="280" type="layer" title="Page contents">
+    <LayerGroupWrapper title="Header" />
+    <LayerGroupWrapper title="Body">
+      <LayerItem v-for="childId in rootChildren" :key="childId" :node-id="childId" :depth="0" />
+    </LayerGroupWrapper>
+    <LayerGroupWrapper title="Footer" />
+  </SidebarWrapper>
+</template>
+```
 
+`rootChildren` = `nodes[ROOT_NODE].data.nodes`. Header / Footer là placeholder cho roadmap multi-region.
+
+```vue
 <!-- LayerItem.vue -->
 <div
-  :class="{ 'wk-layer--selected': isSelected }"
-  :style="{ paddingLeft: depth * 16 + 'px' }"
-  @click="onClick"
+  class="flex items-center gap-... rounded-... cursor-pointer"
+  :class="{ 'bg-neutral-200': isSelected, 'opacity-40': isDragging,
+            'ring-1 ring-inset': dropIndicator === 'inside' }"
+  :style="{ marginLeft: `calc(var(--spacing-2xs) + ${depth * 20}px)` }"
+  draggable="true"
+  @click.stop="onClick"
+  @mouseenter="onHover" @mouseleave="onLeave"
+  @dragstart.stop="onDragStart"
+  @dragend="onDragEnd"
+  @dragover="onDragOver" @dragleave="onDragLeave"
+  @drop.stop.prevent="onDrop"
 >
   <component :is="icon" :size="14" />
-  {{ label }}
+  <span class="truncate">{{ label }}</span>
+  <button v-if="hidden" @click="toggleHidden"><EyeOff /></button>
 </div>
 <LayerItem
   v-for="childId in node.data.nodes"
-  :key="childId"
-  :node-id="childId"
-  :depth="depth + 1"
+  :key="childId" :node-id="childId" :depth="depth + 1"
 />
 ```
 
-`label` và `icon` đọc từ map cứng (hiện chưa wire registry):
+`label` và `icon` đọc trực tiếp từ registry:
 ```js
-const LABEL_BY_TYPE = { 'flex-section': 'Section', 'flex-block': 'Block', heading: 'Heading' }
-const ICON_BY_TYPE = { 'flex-section': SquareStack, 'flex-block': Square, heading: Type }
+computed: {
+  def() { return getDef(this.node.data.type) },
+  label() { return this.node.data.name || this.def?.label || this.node.data.type },
+  icon() { return this.def?.icon || Square },
+}
 ```
 
-**TODO future:** thay bằng `getDef(type).label` và `getDef(type).icon` từ registry — thêm element mới tự xuất hiện trong Layers.
+Thêm element mới → tự xuất hiện trong Layers (lấy label/icon từ registry).
 
-### Click → select
+### Layers hide rule
+
+`meta.rules.hideInLayer = true` → LayerItem skip render node đó + descendants. Vd `root_canvas` (vì Sidebar wrapper đã có header "Page contents").
+
+Satellite cũng có thể `hideInLayer: true` để không lộ ra (vd `tab-content` nằm bên trong Tab).
+
+### Drag-reorder trong Layers
+
+`LayerItem` reuse `draggableNode` semantics: dragstart → `dndStore.startMove(nodeId, shadow)`. Drop trên layer khác → tính placement theo cursor Y vs item rect:
+- Cursor 25% trên → `where: 'before'` parent của item
+- Cursor 25% dưới → `where: 'after'` parent của item
+- Cursor giữa → `'inside'` (chỉ với container item)
+
+Apply qua `move(id, newParentId, idx)`. Same parent + permutation → tự coalesce thành `reorderChildren` (1 entry history).
+
+### Click → select + scroll
 
 ```js
 onClick() {
   useNodeStore().setSelected(this.nodeId)
-  // TODO: scrollIntoView trên canvas
+  this.$nextTick(() => {
+    const node = useNodeStore().nodes[this.nodeId]
+    node?.dom?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  })
 }
 ```
 
-### Drag-reorder trong Layers (chưa làm)
-
-Pattern: dùng cùng `draggableNode` mixin trên `LayerItem` — drag → startMove(nodeId). Drop trên layer khác → move. Cùng Positioner & indicator pipeline.
-
 ## 5. Body classlist marker `wk-dragging`
 
-Khi `startCreate` hoặc `startMove`, `draggableNode` mixin:
+Khi `startCreate` hoặc `startMove`:
 ```js
 document.body.classList.add('wk-dragging')
 ```
@@ -337,15 +357,31 @@ document.body.classList.add('wk-dragging')
 body.wk-dragging .wk-edge-overlay { display: none; }
 ```
 
-(Hiện chưa apply rộng, sẵn cho mở rộng.)
+## 6. SettingDialog hub
 
-## 6. Tóm tắt overlay priority
+`src/components/editor_v2/components/SettingDialog.vue` — mount tập hợp popover (asset picker, color picker, animation editor, …). Đọc `uiStore.settingDialogs` stack.
 
-Khi 1 element được select, các overlay xuất hiện theo z-index:
+```js
+toggleDialogVis(e, type, data?)   // open
+closeDialog(type)                  // close
+setDialogPosition(type, position)  // reposition
+```
 
-1. Element outline (`.wk-node-selected`) — `outline` CSS, không phải overlay riêng
+Trait widget (vd `BackgroundImageTrait`) click button trigger:
+```js
+useUIStore().toggleDialogVis(event, 'asset-picker', { nodeId, fieldKey: 'backgroundImage' })
+```
+
+Dialog đọc `ctx.data.nodeId` + `ctx.data.fieldKey` để biết edit field gì của node nào → on confirm gọi `nodeStore.changeStyle(...)`.
+
+## 7. Tóm tắt overlay priority
+
+Khi 1 element được select:
+
+1. Element outline (`.wk-node-selected`) — CSS outline, không phải overlay riêng
 2. EdgeOverlays — `z-index: 9990`, follow rect bằng rAF
 3. ElementToolbar — `z-index: 10000`, follow rect bằng rAF
-4. IndicatorOverlay — chỉ khi drag, `z-index: 10000`, không có khi không drag
+4. IndicatorOverlay — chỉ khi drag, `z-index: 10000`
+5. SettingDialog popovers — `z-index: 10010`
 
 Tất cả Teleport vào `body` để tránh bị clip bởi canvas overflow.
