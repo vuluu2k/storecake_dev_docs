@@ -215,7 +215,7 @@ onMoveDragStart(e) {
 
 Logic phức tạp hơn `addNodeTree`:
 
-1. **Validation:** `nodeId !== newParentId`, không có cycle (descendants không include newParentId), không root-only nesting (`isRootOnlyType(node.data.type) && newParent.data.type !== 'root'`)
+1. **Validation:** `nodeId !== newParentId`, không có cycle (descendants không include newParentId), không root-only nesting (`isRootOnlyType(node.data.type) && newParent.data.type !== 'root'`), và parent whitelist (`getNodeChildAllows(newParent.data.type)` — nếu non-empty và không include `node.data.type` → reject)
 2. **No-op fast path:** cùng parent + cùng spot → return
 3. **Auto-wrap:** newParent=ROOT + node không phải root-only → `wrapInBlankSection({ rootNodeId: nodeId, nodes: {} })` → wrap thành flex-section
 4. **Normal re-parent:** remove khỏi old parent, adjust index nếu same parent (oldIdx < newIndex → newIndex--), insert vào new parent, ghi `node.data.parent = newParentId`
@@ -314,17 +314,28 @@ Gọi từ `endDrag`. Nếu không cleanup, listener window `preventDefault` cò
 
 ## 6. IndicatorOverlay component
 
-`src/components/editor_v2/elements/IndicatorOverlay.vue`:
+`src/components/editor_v2/elements/IndicatorOverlay.vue` render **2 chế độ**:
+
+1. **OK drop** (`indicator.error == null`) → vạch xanh 2px ở vị trí placement.
+2. **Reject drop** (`indicator.error` có message) → ô đỏ (`border + bg rgba(255,77,79,.08)`) bọc parent rect + label đỏ ghi lý do reject (vd "Allowed drop: TEXT", "flex-section can only live at the page root").
 
 ```js
 computed: {
   indicator() { return useNodeStore().events.indicator },
-  rect() {
+  // Red box + label khi cố drop vào parent không hợp lệ
+  errorBox() {
     const ind = this.indicator
-    if (!ind || ind.error) return null
-    const target = ind.placement.currentNode?.dom
-    if (target) return target.getBoundingClientRect()
-    return ind.placement.parent.dom?.getBoundingClientRect()  // fallback: cuối parent
+    if (!ind || !ind.error) return null
+    const parentNode = ind.placement?.parent && this.nodes[ind.placement.parent.id]
+    if (!parentNode?.dom) return null
+    const info = getDOMInfo(parentNode.dom)
+    return {
+      message: ind.error,
+      style: { position: 'fixed', top: info.top + 'px', left: info.left + 'px',
+        width: info.width + 'px', height: info.height + 'px',
+        border: '1px solid #FF4D4F', background: 'rgba(255,77,79,.08)',
+        zIndex: 'var(--wk-z-drop-indicator)', cursor: 'not-allowed' },
+    }
   },
   show() {
     const ind = this.indicator
@@ -333,20 +344,23 @@ computed: {
     return true
   },
   style() {
-    if (!this.rect) return {}
-    const isAfter = this.indicator.placement.where === 'after'
-    return {
-      position: 'fixed',
-      left: this.rect.left + 'px',
-      top: (isAfter ? this.rect.bottom : this.rect.top) + 'px',
-      width: this.rect.width + 'px',
-      height: '2px',
-      background: '#3F8DFF',
-      zIndex: 10000,
-    }
-  }
+    /* vạch xanh placement — position fixed, height 2px, bg #3F8DFF */
+    /* dùng movePlaceholder(placement, canvasDOMInfo, targetDOMInfo) để tính top/left/width */
+  },
 }
 ```
+
+Template:
+```vue
+<div v-if="show" class="wk-indicator" :style="style" />
+<div v-else-if="errorBox" class="wk-indicator-error" :style="errorBox.style">
+  <span class="wk-indicator-error__label">{{ errorBox.message }}</span>
+</div>
+```
+
+Error message string đến từ `node.js` store action `setIndicator` callback hoặc trực tiếp từ `Positioner.isDroppable`:
+- `flex-section can only live at the page root` — root-only nest sai chỗ
+- `Allowed drop: TEXT, IMAGE` — parent có `rules.nodeChildAllows` whitelist src.data.type không nằm trong
 
 Teleport vào body để không bị clip bởi overflow canvas.
 

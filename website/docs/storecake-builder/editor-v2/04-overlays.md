@@ -1,3 +1,8 @@
+---
+sidebar_position: 5
+title: 04 — Selection, Toolbar, Edge Overlays, Layers
+---
+
 # 04 — Selection, Toolbar, Edge Overlays, Layers
 
 UI nổi (floating) phục vụ tương tác với node đã chọn: ElementToolbar, EdgeOverlays. + Layers panel.

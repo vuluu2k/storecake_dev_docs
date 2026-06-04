@@ -1,3 +1,8 @@
+---
+sidebar_position: 9
+title: 08 — Glossary
+---
+
 # 08 — Glossary
 
 Tham chiếu nhanh: variable abbreviations, function purposes, file mapping. Mỗi entry có ý nghĩa + nơi xuất hiện + ví dụ.

@@ -276,7 +276,8 @@ export const meta = {
     hideInLayer: false,             // ẩn khỏi Layers panel
     isContentEditable: false,       // bật editableText mixin
     edgeOverlay: { padding: true, marginSides: { left: false } },  // overlay rule
-    canDropInto: (parentType) => true,
+    canDropInto: (parentType) => true,                              // src-side drop guard
+    nodeChildAllows: [],            // parent-side whitelist: chỉ chấp nhận child types này; [] = không hạn chế
   },
   defaults: {
     style:    { '--node-width': 'fit', padding: '12px 24px' },
@@ -333,8 +334,8 @@ export const meta = {
 | File | Đọc gì từ registry |
 |---|---|
 | `NodeRenderer` | `getDef(type).component` để render |
-| `Positioner` | `isRootOnlyType(type)`, `canDropInto(src, parent)` để biết drop rule |
-| `node.js` store | `isRootOnlyType`, `isLockedType`, `getAllowedKeys(type, ns)`, `getDef(type).statefulKeys`, `getDef(type).states`, `getDef(type).events` |
+| `Positioner` | `isRootOnlyType(type)`, `canDropInto(src, parent)`, `getNodeChildAllows(parent)` để biết drop rule |
+| `node.js` store | `isRootOnlyType`, `isLockedType`, `getAllowedKeys(type, ns)`, `getNodeChildAllows(parent)`, `getDef(type).statefulKeys`, `getDef(type).states`, `getDef(type).events` |
 | `nodeFactory.factoryFor` | Wrapped factory + defaults |
 | `nodeBase.commonStyleData` | `getDef(type).renderers` array |
 | `satelliteOwner` | `getDef(type).satellite` để ensure child |

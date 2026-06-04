@@ -34,6 +34,7 @@ export const meta = {
   rules: {
     isRootOnly: false,
     edgeOverlay: { padding: false },          // tùy chọn: tắt overlay padding
+    nodeChildAllows: [],                      // whitelist child type strings; [] = no restriction
   },
   defaults: {
     style: {
@@ -391,7 +392,7 @@ rules: { locked: true, hideInLayer: true }
 - LayerItem ẩn (theo `hideInLayer`)
 - ElementToolbar disable trash + duplicate
 
-## 4. Element catalog hiện tại (15 type)
+## 4. Element catalog hiện tại (16 type)
 
 | Type | Label | Folder | Category | Container | Mixins (+opt-in) | Notes |
 |---|---|---|---|---|---|---|
@@ -410,6 +411,7 @@ rules: { locked: true, hideInLayer: true }
 | `tab-content` | Tab content | `tab_content` | basic | yes | nodeContainer + draggableNode | child của tab |
 | `tab-item` | Tab item | `tab_item` | basic | no | nodeLeaf | satellite — locked |
 | `breadcrumb` | Breadcrumb | `breadcrumb` | basic | no | nodeLeaf + draggableNode | separator + crumbs |
+| `text-marquee` | Text marquee | `text-marquee` | basic | yes | nodeContainer + draggableNode | `nodeChildAllows: ['text']` — only Text children |
 
 > Tham khảo `composable/editor_v2/templates/hero.js` cho composite page template — drop nhiều element qua `buildTemplate(id)`.
 
@@ -461,7 +463,7 @@ Skill `builderx_spa-figma-to-ui-kit` có flow đầy đủ để translate Figma
 - [x] Stateful pattern (Button hover/active)
 - [x] Satellite pattern (Tab ↔ TabContent, List ↔ ListItem)
 - [x] InlineContentEditable (Heading/Text/Button)
-- [x] Element catalog: 14 user-facing types
+- [x] Element catalog: 16 user-facing types
 - [ ] Spacer + Divider primitive
 - [ ] Reset-to-default per trait field button
 

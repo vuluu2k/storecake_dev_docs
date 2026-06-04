@@ -1,3 +1,8 @@
+---
+sidebar_position: 7
+title: 06 — Troubleshooting
+---
+
 # 06 — Troubleshooting
 
 Lỗi thường gặp, cách debug, checklist khi sửa code.

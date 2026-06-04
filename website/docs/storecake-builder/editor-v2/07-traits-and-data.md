@@ -1,3 +1,8 @@
+---
+sidebar_position: 8
+title: 07 — Trait Panel, Data Model & Schema System
+---
+
 # 07 — Trait Panel, Data Model & Schema System
 
 Deep dive vào: data model 5 namespace, cascade desktop-first + `mergeStateMap`, trait registry chia domain (`defs/*`), 37 widget vue, events catalog, `buildElementSchema` (mirror per-bp + state-overrides), `meta.defaults` với factory wrap, helpers JSON Schema, store-level guard, statefulKeys.

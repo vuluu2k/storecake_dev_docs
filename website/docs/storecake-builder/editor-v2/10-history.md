@@ -1,3 +1,8 @@
+---
+sidebar_position: 11
+title: 10 — History (Undo / Redo) & Patch System
+---
+
 # 10 — History (Undo / Redo) & Patch System
 
 Deep dive vào undo/redo của editor_v2: `PatchRecorder` thu mutation thành (forward, inverse) patches, `useHistoryStore` giữ timeline, `_commit` trong node store là chokepoint duy nhất ghi state. Coalesce + throttle để hot path (kéo edge-overlay) không phình timeline.

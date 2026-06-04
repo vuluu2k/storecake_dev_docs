@@ -1,3 +1,8 @@
+---
+sidebar_position: 10
+title: 09 — AI Page Generation
+---
+
 # 09 — AI Page Generation
 
 > **STATUS: IMPLEMENTED (FE pipeline) + BE in spec** — Phase 1 pipeline FE đã có đủ ở `composable/editor_v2/ai/` (13 module). BE Elixir partner đang implement theo `composable/editor_v2/ai/BACKEND_PLAN.md`. Phase 2/3 còn ở backlog.
@@ -222,12 +227,13 @@ Checks:
 2. Type exists trong registry
 3. Factory phải có (warn nếu thiếu — defaults sẽ không seed)
 4. `isRootOnly` chỉ ở `depth === 0`
-5. `canDropInto(srcType, parentType)`
-6. `children` chỉ tồn tại trên `isContainer`
-7. Mọi key trong `style/config/specials` phải có trong `allowedKeys[ns]` (cho phép empty Set = legacy)
-8. Forbidden fields: `id, parent, nodes, responsive, dom`
-9. Events: structural validate qua `validateEvents` theo `meta.events`
-10. Recurse children
+5. `canDropInto(srcType, parentType)` (src-side drop guard)
+6. `getNodeChildAllows(parentType)` — parent-side whitelist; nếu non-empty, child `type` phải nằm trong list (vd `text-marquee` chỉ chấp nhận `text`)
+7. `children` chỉ tồn tại trên `isContainer`
+8. Mọi key trong `style/config/specials` phải có trong `allowedKeys[ns]` (cho phép empty Set = legacy)
+9. Forbidden fields: `id, parent, nodes, responsive, dom`
+10. Events: structural validate qua `validateEvents` theo `meta.events`
+11. Recurse children
 
 Return `string[]` — empty = valid. Throw KHÔNG được — caller (BE re-prompt) cần list lỗi.
 

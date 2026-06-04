@@ -1,3 +1,8 @@
+---
+sidebar_position: 3
+title: 02 — Rendering Pipeline
+---
+
 # 02 — Rendering Pipeline
 
 Cách Editor V2 render cây node ra DOM, reactive update khi store đổi, và mối liên hệ giữa Pinia/Vue/registry.

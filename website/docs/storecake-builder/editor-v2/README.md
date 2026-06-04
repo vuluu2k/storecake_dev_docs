@@ -1,3 +1,8 @@
+---
+sidebar_position: 1
+title: Editor V2 — Mục lục tài liệu
+---
+
 # Editor V2 — Mục lục tài liệu
 
 Tài liệu chi tiết về kiến trúc Editor V2: visual page builder kế thừa convention DOM của Pagefly, port từ craft.js (React) sang Vue 3 Options API + Pinia.
