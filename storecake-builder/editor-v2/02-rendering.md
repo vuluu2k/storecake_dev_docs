@@ -285,7 +285,7 @@ KHÔNG dùng index assignment (`parent.data.nodes[0] = id`) hoặc replace cả 
 
 ### Stateful CSS
 
-`stateCss` compute mỗi khi `node.data.config[state]` đổi. Output là string CSS string — Vue render `<style>{{ stateCss }}</style>` rất rẻ, browser tự re-parse.
+`stateCss` compute mỗi khi `node.data.states[state]` đổi. Output là string CSS string — Vue render `<style>{{ stateCss }}</style>` rất rẻ, browser tự re-parse.
 
 ## 10. Khi nào element TỰ render không qua NodeRenderer?
 

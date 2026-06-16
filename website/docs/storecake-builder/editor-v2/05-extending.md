@@ -305,7 +305,7 @@ defaults: {
 ### 3.3. Stateful (Button hover/active)
 
 ```js
-// meta.js
+// meta.js — chỉ khai base + variants. KHÔNG còn `states.groups`.
 states: {
   base: 'default',
   variants: [
@@ -313,9 +313,22 @@ states: {
     { value: 'hover',   label: 'Hover',  selector: ':hover'  },
     { value: 'active',  label: 'Active', selector: ':active' },
   ],
-  groups: ['background', 'shape', 'typography'],   // chỉ các group này dùng state
+},
+// group nào cho phép override per-state → gắn `stateful: true` lên group đó trong `traits`,
+// và thêm 1 group variant-picker `{ key: 'state', state: true }`.
+traits: {
+  general: [
+    { key: 'state', state: true },
+    { key: 'background', label: 'Background', stateful: true, attributes: [TRAIT.BG_COLOR] },
+    { key: 'shape',      label: 'Shape',      stateful: true, attributes: [TRAIT.BORDER, TRAIT.CORNER] },
+    { key: 'typography', label: 'Typography', stateful: true, attributes: [TRAIT.TEXT_COLOR] },
+  ],
 },
 ```
+
+State override ghi vào `data.states[state] = { style, config }` (base) + `data.responsive[bp].states[state]`
+(per-bp), KHÔNG vào `config`. `collectStatefulWriteKeys(meta)` gom writeKey từ group `stateful: true` →
+`def.statefulKeys` (store dùng để divert).
 
 ```vue
 <template>
@@ -340,7 +353,7 @@ export const meta = { ...baseMeta, factory: (o = {}) => createNode({ type: 'my-b
 </script>
 ```
 
-Toolbar tự hiện WkSegmented variant picker. User chọn "Hover" + edit `bg_color` → `_routeState` divert vào `config.hover.background` → `stateCss` compose CSS `[data-node-id="..."]:hover { background: ... !important }`.
+Toolbar tự hiện WkSegmented variant picker. User chọn "Hover" + edit `bg_color` → `_routeState` divert vào `states.hover.style.backgroundColor` → `stateCss` compose CSS `[data-node-id="..."]:hover { background: ... !important }`.
 
 ### 3.4. Satellite (Tab ↔ TabContent / List ↔ ListItem)
 

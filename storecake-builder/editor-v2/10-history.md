@@ -425,12 +425,13 @@ Khi user edit variant `hover` của Button:
 
 ```
 1. setState('hover')                                    [no history]
-2. changeStyle(id, { background: '#0d6efd' }, { stateful: true })
-     → _routeState divert vào config.hover.background
-     → _writeNs(id, 'config', { hover: {...} }, currentBp)
-     → entry E1 'changeConfig', key 'config:id'
+2. changeStyle(id, { backgroundColor: '#0d6efd' }, { stateful: true })
+     → _routeState divert vào states.hover.style (key thuộc statefulKeys)
+     → _writeState(id, 'hover', 'style', {...}, slot) → writeStateWithRec
+       (slot = base, hoặc responsive[bp] nếu key thuộc STYLE_ASYNC)
+     → entry E1 'changeState', key 'states:id:hover:style'
 3. setState('default')                                  [no history]
-4. Cmd-Z → undo E1 → config.hover.background remove
+4. Cmd-Z → undo E1 → states.hover.style.backgroundColor remove
    selectedBefore = [id], state vẫn 'default' (selection restore không reset state)
 ```
 

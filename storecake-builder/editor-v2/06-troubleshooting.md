@@ -164,7 +164,7 @@ grep -A 5 "dropInsideCanvas" src/stores/editor_v2/dnd.js
 
 **Check:**
 1. `meta.states.variants` có chứa entry `{ value: 'hover', selector: ':hover' }`?
-2. `meta.states.groups` có cover trait đang edit? (Nếu groups = `['shape']` mà edit `bg_color` thuộc 'background', writeKey không qua `statefulKeys` → ghi flat)
+2. Group chứa trait đang edit có gắn `stateful: true`? (Nếu chỉ group 'shape' có `stateful: true` mà edit `bg_color` thuộc group 'background' không có cờ, writeKey không vào `statefulKeys` → ghi flat)
 3. `useNodeStore().events.state === 'hover'`?
 4. Component template có `<component :is="'style'" v-if="stateCss">{{ stateCss }}</component>`?
 5. Element mixin có include `statefulNode`?
@@ -180,8 +180,9 @@ import('@/composable/editor_v2/registry').then(r => {
 
 // Verify routing
 useNodeStore().setState('hover')
-useNodeStore().changeStyle('btn-id', { background: '#0d6efd' }, { stateful: true })
-// → nodes['btn-id'].data.config.hover.background phải = '#0d6efd'
+useNodeStore().changeStyle('btn-id', { backgroundColor: '#0d6efd' }, { stateful: true })
+// → nodes['btn-id'].data.states.hover.style.backgroundColor phải = '#0d6efd'
+//   (hoặc data.responsive[bp].states.hover.style nếu key thuộc STYLE_ASYNC)
 ```
 
 ### Satellite không xuất hiện sau khi drag Tab

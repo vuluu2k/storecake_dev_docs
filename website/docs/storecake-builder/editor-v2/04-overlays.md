@@ -35,7 +35,7 @@ clearSelected()    { this.events.selected = []; this.events.state = null }
 | Bắt đầu drag-move | `onMoveDragStart` → `setSelected(nodeId)` | Element được select trước khi drag |
 | Click trong Layers panel | `LayerItem.onClick` → `setSelected(nodeId)` | Outline + cuộn canvas tới element |
 | Click "+" sibling button trong EdgeOverlays | `addSibling` → `setSelected(newId)` | Element mới được select ngay |
-| Đổi variant trong toolbar | `setState('hover')` | Trait edit dispatch vào `config[state]` |
+| Đổi variant trong toolbar | `setState('hover')` | Trait edit dispatch vào `states[state]` |
 
 ### Visual
 
@@ -149,7 +149,7 @@ Khi `meta.states.variants` tồn tại, toolbar hiện thêm WkSegmented switch 
 onSetState(value) { useNodeStore().setState(value) }
 ```
 
-User edit trait khi state ≠ base → `changeStyle(id, patch, { stateful: true })` → `_routeState` divert stateful writeKey vào `config[state]` map.
+User edit trait khi state ≠ base → `changeStyle(id, patch, { stateful: true })` → `_routeState` divert stateful writeKey vào `states[state].{style,config}` (per-bp qua `writeStateWithRec`).
 
 ## 3. EdgeOverlays
 

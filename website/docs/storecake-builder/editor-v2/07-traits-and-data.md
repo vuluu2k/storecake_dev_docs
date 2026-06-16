@@ -5,7 +5,7 @@ title: 07 — Trait Panel, Data Model & Schema System
 
 # 07 — Trait Panel, Data Model & Schema System
 
-Deep dive vào: data model 5 namespace, cascade desktop-first + `mergeStateMap`, trait registry chia domain (`defs/*`), 37 widget vue, events catalog, `buildElementSchema` (mirror per-bp + state-overrides), `meta.defaults` với factory wrap, helpers JSON Schema, store-level guard, statefulKeys.
+Deep dive vào: data model (5 base namespace + `states` override namespace + responsive), cascade desktop-first (`mergeNamespace`) + state cascade (`mergeStateNs` / `mergeStateNode` / `mergeStateMap`), trait registry chia domain (`defs/*`), 37 widget vue, events catalog, `buildElementSchema` + `applyStateSchema` (mirror per-bp + `states` overrides), `meta.defaults` với factory wrap, helpers JSON Schema, store-level guard, statefulKeys.
 
 ---
 
@@ -75,7 +75,7 @@ src/components/editor_v2/
 
 ---
 
-## 2. Data model — 5 namespace + responsive
+## 2. Data model — 5 base namespace + `states` + responsive
 
 ```js
 node = {
@@ -90,23 +90,34 @@ node = {
     custom: {},
 
     style:    { padding: '32px 0px', '--node-width': 'fill' },   // CSS responsive (cascade)
-    config:   { contentWidth: 'fill_container',
-                hover: { background: '#0d6efd' } },               // data per-bp opt-in + state maps
+    config:   { contentWidth: 'fill_container' },                 // data per-bp opt-in
     specials: { htmlTag: 'h2', text: 'Hello' },                   // base-only metadata + content
     events:   [{ id, name, action, target, payload? }],           // base-only behaviors
     bindings: [{ id, source, field, target, transform? }],        // base-only data refs
 
+    // State overrides (hover/active…) — namespace RIÊNG, tách style/config.
+    // KHÔNG nằm trong config. Mỗi state là 1 cluster { style, config }.
+    states: {
+      hover: { style: { backgroundColor: '#0d6efd' }, config: {} },
+    },
+
     responsive: {
       mobile: {
         style:  { '--layout-direction': 'vertical', padding: '15px' },
-        config: { hover: { background: '#0a58ca' } },              // state map cũng per-bp
+        config: {},
+        // state override cũng per-bp — qua responsive[bp].states[state]
+        states: { hover: { style: { backgroundColor: '#0a58ca' }, config: {} } },
       },
     },
   },
   dom: null,
-  events: {},
+  events: {},   // runtime DOM-listener bag (Positioner/DnD), KHÁC data.events
 }
 ```
+
+> **states là namespace thứ 6 (override).** Trước đây state map sống trong `config[state]`
+> (vd `config.hover`). Sau refactor, override mỗi state nằm trong `data.states[state] = { style, config }`
+> (base) và `data.responsive[bp].states[state]` (per-bp). `config` giờ KHÔNG còn chứa state map.
 
 ### Phân loại field theo namespace
 
@@ -117,13 +128,14 @@ node = {
 | NO + metadata HTML/content | `specials` |
 | NO + behavior (click handler) | `events` |
 | NO + data-binding | `bindings` |
+| Override cho variant (hover/active) | `states[state].{style,config}` |
 
 | Field | Namespace | Lý do |
 |---|---|---|
 | `padding`, `margin`, `gap`, `background`, `boxShadow`, `borderRadius`, `--node-width`, `--layout-direction` | `style` | CSS hay đổi theo bp |
 | `contentWidth`, `backgroundType`, `isPaddingLinked`, `backgroundVideoUrl`, `animation`, `hidden`, `textGlobalStyle` | `config` | Data/render-mode/per-bp behavior |
 | `htmlTag`, `text` (Heading), `htmlId`, `className`, `ariaLabel`, `productId`, `label` (Button) | `specials` | Content / DOM metadata không đổi theo bp |
-| `default` / `hover` / `active` state maps | `config[state]` | Variant overrides (qua `_routeState`) |
+| `hover` / `active` overrides | `states[state]` = `{ style, config }` | Variant overrides (qua `_routeState` → `states[state][ns]`) |
 
 ### CSS custom properties
 
@@ -206,16 +218,32 @@ const NON_CASCADING = {
 
 Vd ẩn node ở desktop KHÔNG nên ẩn lây sang mobile — user phải explicit set per-bp.
 
-### `mergeStateMap(node, state, currentBp)` — cascade state map
+### State cascade — `states` namespace có 3 reader
 
-State map (`config.hover`, `config.active`) cũng cần cascade per-bp. `mergeStateMap` đi sâu 1 level — merge `config[state]` qua các bp giống `mergeNamespace` nhưng lấy 1 sub-map.
+State override (`states.hover`, `states.active`) cũng cần cascade per-bp. Override sống trong
+`data.states[state] = { style, config }` (base) + `data.responsive[bp].states[state]` (per-bp),
+nên cascade đi sâu thêm 1 level so với `mergeNamespace`. `mergeNode.js` export 3 helper:
 
 ```js
+// 1) Cascade 1 namespace của 1 state qua các bp (giống mergeNamespace, 1 level sâu hơn).
+mergeStateNs(node, 'hover', 'style', 'mobile')
+// → { backgroundColor: '#0a58ca', ... }  // states base ⊕ desktop ⊕ ... ⊕ mobile (chỉ slot.states)
+
+// 2) Flat union style+config của 1 state tại bp — style/config writeKey global-unique nên union an toàn.
 mergeStateMap(node, 'hover', 'mobile')
-// → { background: '#0a58ca', color: '#fff', ... }  // base ⊕ desktop ⊕ ... ⊕ mobile
+// → { ...mergeStateNs(style), ...mergeStateNs(config) }
+
+// 3) Fold state vào CHÍNH style/config của node (base + mọi responsive slot) → synthetic node
+//    render/cascade y như state là look mặc định. PURE (không cần bp arg).
+mergeStateNode(node, 'hover')
+// → { ...node, data: { ...data, style: base⊕states.hover.style, responsive: per-bp folded, states: {} } }
 ```
 
-Dùng bởi `statefulNode.stateCss` để compose CSS rule cho variant.
+- `mergeStateMap` — dùng bởi `statefulNode.stateCss` để biết state đổi key nào → emit CSS tối thiểu.
+- `mergeStateNode` — dùng bởi `TraitField.renderNode`: khi panel ở state ≠ base, fold override vào
+  node để widget đọc value qua `getStyle/getConfig` bình thường (xem §7).
+
+`specials/events/bindings` vẫn KHÔNG cascade — base only.
 
 ---
 
@@ -498,7 +526,9 @@ export const meta = {
     },
   },
 
-  // Optional — stateful variants (Button uses this)
+  // Optional — stateful variants (Button uses this). CHỈ khai base + variants;
+  // group nào cho phép override per-state thì gắn `stateful: true` lên group đó
+  // trong `traits` (KHÔNG còn `states.groups`).
   states: {
     base: 'default',
     variants: [
@@ -506,7 +536,6 @@ export const meta = {
       { value: 'hover',   label: 'Hover',  selector: ':hover'  },
       { value: 'active',  label: 'Active', selector: ':active' },
     ],
-    groups: ['background', 'shape', 'typography'],
   },
 
   // Optional — satellite (Tab uses this)
@@ -524,17 +553,28 @@ export const meta = {
       { key: 'layout',     label: 'Layout',
         attributes: [TRAIT.DIRECTION, TRAIT.GAP, TRAIT.PADDING, TRAIT.VERTICAL, TRAIT.HORIZONTAL,
                      { key: TRAIT.MARGIN, visible: false }] },
-      { key: 'background', label: 'Background', attributes: [TRAIT.BG_COLOR, TRAIT.BG_IMAGE, TRAIT.BG_VIDEO] },
-      { key: 'shape',      label: 'Shape',      attributes: [TRAIT.BORDER, TRAIT.CORNER, TRAIT.SHADOW] },
+      // `state: true` → group này render WkSegmented variant-picker (Default/Hover/…),
+      // không phải field thường. Chỉ thêm khi element có meta.states.
+      { key: 'state', state: true },
+      // `stateful: true` → group cho phép override per-state (writeKey của nó vào statefulKeys).
+      // `keepInState: true` → group vẫn hiện khi đang ở state ≠ base (vd Size/Layout).
+      { key: 'background', label: 'Background', stateful: true,
+        attributes: [TRAIT.BG_COLOR, TRAIT.BG_IMAGE, TRAIT.BG_VIDEO] },
+      { key: 'shape',      label: 'Shape',      stateful: true,
+        attributes: [TRAIT.BORDER, TRAIT.CORNER, TRAIT.SHADOW] },
     ],
     advanced: [
-      { key: 'spacing',   label: 'Spacing',   attributes: [TRAIT.PADDING_MARGIN] },
-      { key: 'display',   label: 'Display',   attributes: [TRAIT.DISPLAY] },
-      { key: 'animation', label: 'Animation', attributes: [TRAIT.ANIMATION] },
+      { key: 'spacing',   label: 'Spacing',   stateful: true, attributes: [TRAIT.PADDING_MARGIN] },
+      { key: 'display',   label: 'Display',   stateful: true, attributes: [TRAIT.DISPLAY] },
+      { key: 'animation', label: 'Animation', stateful: true, attributes: [TRAIT.ANIMATION] },
     ],
   },
 }
 ```
+
+**`stateful: true` là cờ trên GROUP** (không phải `states.groups`). `buildStateOverrideSchema` walk
+group có `stateful` → gom writeKey → `collectStatefulWriteKeys` → `def.statefulKeys`. Attribute
+muốn opt-out riêng dùng `{ key, stateful: false }`.
 
 **Không có** `factory` (sống trong `index.vue`).
 **Không có** Vue import. Relative imports cho `node` thuần.
@@ -567,12 +607,26 @@ const factory = origFactory
           }
         }
       }
+      // Seed default state overrides (hover/active…) — fill-missing per state/ns.
+      if (Object.keys(defaults.states).length) {
+        node.data.states = node.data.states || {}
+        for (const st in defaults.states) {
+          const defSt = defaults.states[st] || {}
+          const existing = node.data.states[st] || {}
+          node.data.states[st] = {
+            style:  { ...(defSt.style  || {}), ...(existing.style  || {}) },
+            config: { ...(defSt.config || {}), ...(existing.config || {}) },
+          }
+        }
+      }
       return node
     }
   : null
 ```
 
-Defaults fill-missing semantics — factory / overrides win over defaults.
+Defaults fill-missing semantics — factory / overrides win over defaults. `normalizeDefaults` chuẩn
+hóa `meta.defaults` thành `{ style, config, specials, states, responsive }` (slot thiếu → `{}`), nên
+element khai default state qua `meta.defaults.states.hover = { style, config }`.
 
 ### 5.4. `index.vue` — Vue + factory composition
 
@@ -676,7 +730,7 @@ Migrate bằng cách thêm definition tương ứng vào `defs/<group>.js`.
       :is="componentDefinition.component"
       v-if="componentDefinition && componentDefinition.component"
       :attribute="attribute"
-      :node="node"
+      :node="renderNode"
       :node-id="node.id"
       :disabled="resolvedDisabled"
       @change="onChange"
@@ -686,31 +740,48 @@ Migrate bằng cách thêm definition tương ứng vào `defs/<group>.js`.
 </template>
 
 <script>
+props: {
+  attribute: { type: [Object, String], required: true },
+  node: { type: Object, required: true },
+  // Stateful editing ctx { current, base }; null = node thường.
+  stateCtx: { type: Object, default: null },
+},
+computed: {
+  // Base state → node thật; state ≠ base → fold override vào style/config qua
+  // mergeStateNode để widget đọc value (getStyle/getConfig) cascade bình thường.
+  renderNode() {
+    if (!this.stateCtx || this.stateCtx.current === this.stateCtx.base) return this.node
+    return mergeStateNode(this.node, this.stateCtx.current)
+  },
+},
 methods: {
   onChange(key, value, patch, opts) {
     const writes = this.componentDefinition.writes
-    if (!writes[key]) {
+    if (!Object.keys(writes).includes(key)) {
       console.error('[editor_v2] invalid key:', key)
       return
     }
     const target = writes[key].target
-    const isStateful = this.store.events.state && this.store.events.state !== getDef(this.node.data.type)?.states?.base
-    const dispatchOpts = { ...opts, stateful: isStateful }
-    if (target === 'style')         this.store.changeStyle(this.node.id, { [key]: value }, dispatchOpts)
-    else if (target === 'config')   this.store.changeConfig(this.node.id, { [key]: value }, dispatchOpts)
-    else if (target === 'specials') this.store.changeSpecials(this.node.id, { [key]: value })
+    // specials LUÔN base-only → không bao giờ stateful.
+    const o = (this.stateCtx && target !== 'specials') ? { ...opts, stateful: true } : opts
+    if (target === 'style')         this.store.changeStyle(this.node.id, { [key]: value }, o)
+    else if (target === 'config')   this.store.changeConfig(this.node.id, { [key]: value }, o)
+    else if (target === 'specials') this.store.changeSpecials(this.node.id, { [key]: value }, o)
   },
 },
 </script>
 ```
 
 Widget tự lo:
-- Đọc value qua `mergeNamespace(node, target, breakpointActive)` hoặc helper `getStyle/getConfig`
+- Đọc value qua `mergeNamespace(node, target, breakpointActive)` hoặc helper `getStyle/getConfig`.
+  Khi panel ở state ≠ base, `node` widget nhận là `renderNode` (đã fold override) nên đọc đúng value.
 - Render UI (input/select/dialog/picker)
 - Emit `change(key, value, patch?, opts?)` khi user edit
 - Có thể emit nhiều key khác nhau
 
-TraitField chỉ làm 2 việc: resolve definition → dispatch theo target (+ stateful routing).
+TraitField làm 3 việc: fold state vào `renderNode` → resolve definition → dispatch theo target.
+Khi `stateCtx` (đang ở state ≠ base) và target ≠ specials, pass `stateful: true` để store `_routeState`
+divert key vào `states[state][ns]`.
 
 ### Multi-write widget
 
@@ -722,28 +793,40 @@ $emit('change', 'isPaddingLinked', true)          // → changeConfig({isPadding
 
 ---
 
-## 8. `buildElementSchema` — JSON Schema với responsive + state mirror
+## 8. `buildElementSchema` + `applyStateSchema` — JSON Schema với responsive + `states`
 
 ### 8.1. Output shape
 
-Walk `meta.traits.general` + `meta.traits.advanced`, resolve attribute via `getDefinitionData`, gom keys theo target → output JSON Schema. Phần `responsive` **mirror full** base style/config cho mọi breakpoint. Phần state-override mirror cho mọi variant trong `meta.states.variants`.
+`buildElementSchema(meta)` walk `meta.traits.general` + `meta.traits.advanced`, resolve attribute via
+`getDefinitionData`, gom keys theo target → JSON Schema base + `responsive` (mirror full base style/config
+cho mọi breakpoint). `buildElementSchema` **không** tự thêm state — state-override do `applyStateSchema(schema, meta)`
+bồi vào: thêm 1 property top-level `states` (base) + `responsive[bp].states` (per-bp), mỗi non-base
+variant map sang cluster `{ style, config }` (từ `buildStateOverrideSchema`). AI dump gọi `applyStateSchema(buildElementSchema(meta), meta)`.
 
 ```js
 {
   type: 'object',
   properties: {
     style:    { type: 'object', properties: { '--node-width': {...}, padding: {...} }, additionalProperties: false },
-    config:   { type: 'object', properties: { contentWidth: {...}, isPaddingLinked: {...},
-                                              default: { type: 'object', properties: <stateful keys> },
-                                              hover:   { type: 'object', properties: <stateful keys> },
-                                              active:  { type: 'object', properties: <stateful keys> } },
+    config:   { type: 'object', properties: { contentWidth: {...}, isPaddingLinked: {...} },
                 additionalProperties: false },
     specials: { type: 'object', properties: { htmlTag: {...}, text: {...} },
                 additionalProperties: false },
+    // states — namespace RIÊNG (do applyStateSchema thêm). KHÔNG nằm trong config.
+    states: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        hover:  { type: 'object', additionalProperties: false,
+                  properties: { style: { properties: <stateful style keys> },
+                                config: { properties: <stateful config keys> } } },
+        active: { ... },
+      },
+    },
     responsive: {
       type: 'object',
       properties: {
-        desktop: { type: 'object', properties: { style: {...}, config: {...} }, additionalProperties: false },
+        desktop: { type: 'object', properties: { style: {...}, config: {...},
+                                                  states: { ...mirror per-bp... } }, additionalProperties: false },
         laptop:  { ... },
         tablet:  { ... },
         mobile:  { ... },
@@ -767,18 +850,21 @@ Walk `meta.traits.general` + `meta.traits.advanced`, resolve attribute via `getD
 
 ```js
 export const collectStatefulWriteKeys = (meta) => {
-  const groups = meta?.states?.groups
-  if (!Array.isArray(groups)) return new Set()
-  const out = new Set()
-  // Walk traits → group.key match meta.states.groups → expand attributes → writeKey vào set
+  const p = buildStateOverrideSchema(meta).properties
+  // gom writeKey từ group có `stateful: true` (trừ attr opt-out `stateful: false`)
+  return new Set([...Object.keys(p.style.properties || {}), ...Object.keys(p.config.properties || {})])
 }
 ```
 
-Consumer: `_routeState` — divert stateful writeKey vào `config[state]` map khi `events.state ≠ base`.
+Lưu vào `def.statefulKeys` lúc `registerElement`. Consumer: `_routeState` — khi `opts.stateful` +
+có active state ≠ base, divert key nằm trong `statefulKeys` vào `states[state][ns]` (per-bp theo policy);
+key còn lại (non-stateful) ghi flat như thường.
 
 ### 8.4. `buildSatelliteSchema(satMeta)`
 
-Slim schema cho satellite — loại bỏ events/state/responsive top-level (vì satellite styling thường cố định base). Owner schema có field `satellite: <satellite schema>` để LLM style satellite mà không cần emit nó như node riêng.
+Schema cho satellite giữ `style` + `config` + `states` cluster (qua `applyStateSchema`), bỏ
+`responsive`/`events` top-level (satellite styling thường cố định base). Owner schema có field
+`satellite: <satellite schema>` để LLM style satellite mà không cần emit nó như node riêng.
 
 ### 8.5. Use cases
 
@@ -816,9 +902,13 @@ function writeNamespaceWithRec(rec, state, id, ns, patch, slot) {
 `getAllowedKeys(type, ns)` precomputed lúc `registerElement`. Build từ `extractAllowedKeys(meta.traits)`:
 - **Definition ref** → expand `def.writes`, add từng writeKey vào set theo target
 - **Legacy inline-spec** → add `attr.key` vào set theo `attr.target`
-- **States variants** → add variant value keys (`default`, `hover`, `active`) vào `allowedKeys.config` để guard không drop state map
 
 Empty Set = "no rules declared" → skip check.
+
+> **State write KHÔNG đi qua guard này.** `changeStyle/Config` với `opts.stateful` route key vào
+> `states[state][ns]` qua một hàm RIÊNG — `writeStateWithRec` — không chạy `allowedKeys`. Whitelist
+> per-state đã được lọc sớm hơn ở `_routeState` bằng `def.statefulKeys` (chỉ key thuộc group
+> `stateful: true` mới được divert; còn lại rơi về flat write và mới qua `writeNamespaceWithRec`).
 
 ### Guard layers
 
@@ -985,7 +1075,8 @@ attributes: [{ key: TRAIT.FONT_SIZE, label: 'Heading size' }]
 | `attribute` | trait attribute | item trong `meta.traits.<tab>[].attributes` |
 | `target` | write target namespace | `'style' \| 'config' \| 'specials'` |
 | `meta` | element metadata | runtime data export từ `meta.js` |
-| `defaults` | element defaults | `{ style, config, specials, responsive }` fill khi factory chạy |
+| `defaults` | element defaults | `{ style, config, specials, states, responsive }` fill khi factory chạy |
+| `states` (namespace) | state override namespace | `data.states[state] = { style, config }` (base) + `data.responsive[bp].states[state]` (per-bp) |
 | `ai` | element AI metadata | sidecar export từ `ai.js` |
 | `factory` | node factory | function tạo Node mới (composed trong index.vue, wrap bởi registry) |
 | `cascade` | desktop-first cascade | merge base + per-bp slots theo width ≥ current |
@@ -996,13 +1087,16 @@ attributes: [{ key: TRAIT.FONT_SIZE, label: 'Heading size' }]
 | `renderers` | precomputed renderer list | ordered `(node) → CSS` cho element |
 | `commonStyleData` | computed CSS từ renderers | `Object.assign({}, ...renderers.map(r => r(node)))` |
 | `buildElementSchema` | schema builder | pure `meta → JSON Schema` (mirror per-bp + state-overrides) |
-| `buildSatelliteSchema` | slim schema cho satellite | bỏ events/state |
+| `buildSatelliteSchema` | slim schema cho satellite | giữ style/config/states, bỏ responsive/events |
+| `applyStateSchema` | bồi `states` vào schema | thêm property `states` (base + per-bp) qua `buildStateOverrideSchema` |
 | `schema_helpers` | JSON Schema builders | `oneOfEnum`, `cssSides`, `number`, `boolean`, etc. |
 | `oneOfEnum` | enum-with-description | emit `oneOf: [{const, description}]` (LLM-honored) |
 | `normalizeResponsiveSlot` | shape normalizer | accept canonical `{style, config}` HOẶC flat → canonical |
 | `WRITE_KEY_TARGETS` | reverse index | `writeKey → target` lookup, build từ DEFINITIONS_DATA |
 | `STYLE_ASYNC` / `CONFIG_ASYNC` | per-key policy | Set định nghĩa key nào default per-bp slot (`responsivePolicy.js`) |
-| `mergeStateMap` | cascade state map | giống `mergeNamespace` nhưng 1 level sâu hơn (`config[state]`) |
+| `mergeStateNs` | cascade 1 ns của 1 state | `data.states[state][ns]` + `responsive[bp].states[state][ns]` qua bp |
+| `mergeStateMap` | flat union state | `{ ...mergeStateNs(style), ...mergeStateNs(config) }` tại 1 bp (dùng bởi `stateCss`) |
+| `mergeStateNode` | fold state vào node | synthetic node với override gập vào style/config (base + per-bp); dùng bởi `TraitField.renderNode` |
 
 ---
 
@@ -1024,8 +1118,8 @@ attributes: [{ key: TRAIT.FONT_SIZE, label: 'Heading size' }]
 - Tạo definition tương ứng vào `defs/*`, đổi attribute sang ref key
 
 ### "Store warn 'unknown key — dropped'"
-- Key không nằm trong `meta.traits` → `extractAllowedKeys` không cover
-- Variant key (`hover`, `active`) → check `meta.states.variants[].value` có đăng ký
+- Key không nằm trong `meta.traits` → `extractAllowedKeys` không cover (chỉ áp dụng cho flat write)
+- State write KHÔNG qua guard này — nếu state override mất key, xem `def.statefulKeys` (group có `stateful: true` chưa)
 
 ### "CSS không apply dù value đã set"
 - Kiểm tra renderer trong `styleRenderers.js` cho trait đó
@@ -1033,10 +1127,11 @@ attributes: [{ key: TRAIT.FONT_SIZE, label: 'Heading size' }]
 - Renderer dùng `getStyle/getConfig` cần `useUIStore` đã init
 
 ### "Stateful override không apply"
-- `meta.states.groups` có cover trait đang edit
+- Group chứa trait có gắn `stateful: true` (writeKey mới vào `def.statefulKeys`)
 - Template có `<component :is="'style'" v-if="stateCss">`
 - Mixin `statefulNode` include
-- `_routeState` chỉ active khi `opts.stateful: true` — TraitField tự pass khi state ≠ base
+- `_routeState` chỉ active khi `opts.stateful: true` — TraitField tự pass khi `stateCtx` (state ≠ base) và target ≠ specials
+- Override đang ghi vào `data.states[state][ns]`, KHÔNG phải `config[state]` (model cũ)
 
 ### "Responsive default override không apply"
 - `meta.defaults.responsive[bp]` flat shape phải có writeKey nằm trong `WRITE_KEY_TARGETS`
@@ -1052,9 +1147,11 @@ attributes: [{ key: TRAIT.FONT_SIZE, label: 'Heading size' }]
 
 | Tìm gì | Đọc file |
 |---|---|
-| Data shape 5 namespace | `composable/editor_v2/createNode.js` (top comment) |
+| Data shape (namespace + states) | `composable/editor_v2/createNode.js` (top comment) |
 | Cascade logic (2-phase) | `composable/editor_v2/mergeNode.js#mergeNamespace` |
-| State map cascade | `composable/editor_v2/mergeNode.js#mergeStateMap` |
+| State cascade (3 reader) | `composable/editor_v2/mergeNode.js#mergeStateNs / mergeStateMap / mergeStateNode` |
+| State write path | `stores/editor_v2/node.js#writeStateWithRec` + `_writeState` + `_routeState` |
+| Stateful CSS injection | `composable/editor_v2/mixins/statefulNode.js` + `components/trait/fields/stateCss.js` |
 | Trait widget definitions | `components/trait/fields/defs/*.js` (group split) |
 | Trait widget barrel | `components/trait/fields/defs/index.js` |
 | Builders + normalizers | `components/trait/fields/definitions.js` |

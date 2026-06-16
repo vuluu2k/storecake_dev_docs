@@ -50,16 +50,22 @@ Mỗi node là một object trong `nodeStore.nodes` map:
     hidden: false,                    // ẩn render
     custom: {},                       // free-form per-element data
 
-    // ─── 5 NAMESPACE ─────────────────────────────────────────
+    // ─── 5 BASE NAMESPACE ────────────────────────────────────
     style:    { padding: '32px 0px', '--node-width': 'fill' },  // CSS responsive
     config:   { contentWidth: 'fill_container' },               // data per-bp opt-in
     specials: { htmlTag: 'h2' },                                // base-only metadata
     events:   [{ id, name, action, target, payload? }],         // base-only behaviors
     bindings: [{ id, source, field, target, transform? }],      // base-only data refs
 
+    // ─── STATES (override namespace, opt-in) ─────────────────
+    states: {                         // hover/active… mỗi state = { style, config }
+      hover: { style: { backgroundColor: '#0d6efd' }, config: {} },
+    },
+
     responsive: {                     // per-breakpoint overrides (text key)
       desktop: { style: { '--layout-direction': 'horizontal' }, config: {} },
-      mobile:  { style: { '--layout-direction': 'vertical'   }, config: {} },
+      mobile:  { style: { '--layout-direction': 'vertical'   }, config: {},
+                 states: { hover: { style: { backgroundColor: '#0a58ca' }, config: {} } } },
     },
   },
   dom: HTMLElement | null,            // tham chiếu DOM thật (markRaw)
@@ -72,9 +78,11 @@ Mỗi node là một object trong `nodeStore.nodes` map:
 mergedStyle    = base.style    ⊕ responsive[desktop].style ⊕ ... ⊕ responsive[currentBp].style
 mergedConfig   = base.config   ⊕ ... (cùng cascade)
 mergedSpecials = base.specials                              // KHÔNG cascade
+stateOverride  = mergeStateMap(node, 'hover', currentBp)   // states[hover] cascade per-bp
 ```
 
-`specials` / `events` / `bindings` đều base-only. `style` / `config` cascade.
+`specials` / `events` / `bindings` đều base-only. `style` / `config` cascade. `states[state].{style,config}`
+cascade per-bp qua `mergeStateNs` (reader: `statefulNode.stateCss`, `TraitField.renderNode`).
 Non-cascading key: `config.hidden` (xem `mergeNode.js` `NON_CASCADING`).
 
 Chi tiết shape + cascade algorithm xem [`07-traits-and-data.md`](./07-traits-and-data.md) sections 1-3.
@@ -134,7 +142,7 @@ Tree được `addNodeTree(tree, parentId, index)` merge vào store và re-paren
 | `setSelected(id)` | Set selection + reset `events.state` về `meta.states.base` |
 | `setIndicator(indicator)` | Cập nhật indicator — **KHÔNG** qua `_commit` |
 | `setState(value)` | Set active variant cho selected node (hover/active editing) |
-| `changeStyle(id, patch, opts?)` | Ghi style — route per-key qua `defaultStyleSlot`; `opts.stateful=true` → `_routeState` divert stateful keys vào `config[state]` |
+| `changeStyle(id, patch, opts?)` | Ghi style — route per-key qua `defaultStyleSlot`; `opts.stateful=true` → `_routeState` divert stateful keys vào `states[state].style` |
 | `changeConfig(id, patch, opts?)` | Ghi config — route per-key qua `defaultConfigSlot` |
 | `changeSpecials(id, patch, opts?)` | Ghi specials (base-only) |
 | `resetStyle/Config/Specials(id, keys)` | Xoá key khỏi target slot (force throttle = 0) |
@@ -153,7 +161,7 @@ Tree được `addNodeTree(tree, parentId, index)` merge vào store và re-paren
 | `_resetNs(method, id, keys)` | Build `{key: undefined}` patch + ép throttle = 0 |
 | `_addEntry/_updateEntry/_removeEntry` | Generic array-namespace mutation cho events/bindings |
 | `_activeState(id)` | Trả variant đang edit (`null` nếu base hoặc id không phải selected) |
-| `_routeState(id, patch, opts)` | Khi `opts.stateful` + có active state: divert stateful writeKey → `config[state]` map; return non-stateful rest cho flat write |
+| `_routeState(id, patch, opts, ns)` | Khi `opts.stateful` + có active state: divert key thuộc `def.statefulKeys` → `states[state][ns]` (per-bp qua `_writeState`/`writeStateWithRec`); return non-stateful rest cho flat write |
 | `_validateEventsWrite(id, nextEvents)` | Structural validation array events theo `getDef(type).events` |
 
 **Getter:**
@@ -321,11 +329,11 @@ export const meta = {
 
 **`registerElement(meta, component)` làm 5 việc:**
 
-1. **Normalize defaults** — đảm bảo `{ style, config, specials, responsive }`.
-2. **Wrap factory** — sau khi factory return, merge defaults vào missing keys (factory/overrides win). Seed `node.data.name` từ `meta.label`. Normalize per-bp slots qua `normalizeResponsiveSlot`.
-3. **Precompute `allowedKeys`** — walk `meta.traits.*.attributes`, resolve qua `DEFINITIONS_DATA.writes`, build `{style: Set, config: Set, specials: Set}`. Cộng thêm variant keys (`states.variants[].value`) vào `allowedKeys.config` để guard không drop state map. Consumer: `writeNamespaceWithRec`.
+1. **Normalize defaults** — đảm bảo `{ style, config, specials, states, responsive }`.
+2. **Wrap factory** — sau khi factory return, merge defaults vào missing keys (factory/overrides win). Seed `node.data.name` từ `meta.label`. Normalize per-bp slots qua `normalizeResponsiveSlot`; seed default `states[state]` per state/ns.
+3. **Precompute `allowedKeys`** — walk `meta.traits.*.attributes`, resolve qua `DEFINITIONS_DATA.writes`, build `{style: Set, config: Set, specials: Set}`. Chỉ gồm flat writeKey (state writes đi đường riêng `writeStateWithRec`, không qua guard này). Consumer: `writeNamespaceWithRec`.
 4. **Precompute `renderers`** — ordered `(node)→CSS` array, seed `[flexCanvas, canvasNodeWrapper]` rồi walk traits + lookup `STYLE_RENDERERS[key]`. Consumer: `nodeBase.commonStyleData`.
-5. **Precompute `statefulKeys`** — `collectStatefulWriteKeys(meta)` — Set writeKey eligible per-state (chỉ keys thuộc groups khai báo trong `states.groups`, trừ opt-outs). Consumer: `_routeState`.
+5. **Precompute `statefulKeys`** — `collectStatefulWriteKeys(meta)` — Set writeKey eligible per-state (keys thuộc group có `stateful: true`, trừ attr opt-out `stateful: false`). Consumer: `_routeState`.
 
 **Bootstrap:** `registerElements.js` chạy `import.meta.glob('@/components/editor_v2/nodes/*/index.vue', { eager: true })`, lặp module, gọi `registerElement(meta, default)`. Import từ `PageWrapper` 1 lần.
 
@@ -339,7 +347,7 @@ export const meta = {
 | `nodeFactory.factoryFor` | Wrapped factory + defaults |
 | `nodeBase.commonStyleData` | `getDef(type).renderers` array |
 | `satelliteOwner` | `getDef(type).satellite` để ensure child |
-| `statefulNode` | `getDef(type).states` + `mergeStateMap` để inject CSS |
+| `statefulNode` | `getDef(type).states` + `mergeStateMap` (đọc `data.states[state]`) để inject CSS |
 | `editableText` | `getDef(type).rules.isContentEditable` |
 | Sidebar pickers | `listSidebar()` để render danh sách element |
 | Layers panel | `getDef(type).label/icon` |
@@ -483,7 +491,7 @@ computed: {
 
 Component template phải có `<component :is="'style'" v-if="stateCss">{{ stateCss }}</component>` ở root. CSS dùng `!important` để beat inline base style.
 
-Reader: `mergeStateMap(node, state, currentBp)` cascade per-bp giống `mergeNamespace` nhưng 1 level sâu hơn (`config[state]` map).
+Reader: `mergeStateMap(node, state, currentBp)` flat-union `data.states[state].{style,config}` cascade per-bp (qua `mergeStateNs`, 1 level sâu hơn `mergeNamespace`). State sống ở namespace `states` riêng, KHÔNG trong `config`.
 
 ### `satelliteOwner` (opt-in via `meta.satellite`)
 

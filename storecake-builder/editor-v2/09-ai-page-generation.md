@@ -393,14 +393,14 @@ You produce JSON page definitions using only the registered element types.
 
 # Output rules
 - Use the `generate_section` tool. The `def` argument must be a recursive tree.
-- For each element, only emit `type`, `style`, `config`, `specials`, `events`, `children`, `satellite`.
+- For each element, only emit `type`, `style`, `config`, `specials`, `states`, `events`, `children`, `satellite`.
 - NEVER emit: id, parent, nodes, responsive, dom, isCanvas, hidden, custom.
 - Base values only (no per-breakpoint overrides — user tunes mobile/tablet by hand).
 - `style` keys must be valid CSS-ish writeKeys from the element's trait schema.
 - `specials` is for content/structural fields (text, href, htmlId, label).
 - `config` is for data fields (contentWidth, isPaddingLinked).
-- For stateful elements (Button): use `config.default/hover/active = {...}` for state overrides.
-- For owner elements (Tab, List): style satellite via `satellite: { style, config, specials }`.
+- For stateful elements (Button): use `states.hover/active = { style, config }` for state overrides (NOT `config.hover`).
+- For owner elements (Tab, List): style satellite via `satellite: { style, config, specials, states }`.
 - Page must have at least 3 sections (header / content / cta).
 - Use only colors/fonts from the brief. Image URLs: `https://placehold.co/WIDTHxHEIGHT`.
 
