@@ -1,574 +1,326 @@
-# 01 — Architecture
+# 01 — Kiến trúc
 
-Kiến trúc tổng thể, data model, 7 Pinia store, registry pattern, 6 mixin layering, cách tránh import cycle.
+Chương này trả lời: **dữ liệu trông như thế nào**, **ai giữ dữ liệu đó**, và **`type` được nối với component ra sao**.
 
-## 1. Bức tranh lớn
+---
+
+## 1. Bốn tầng
+
+Editor V2 chia theo *mức độ phụ thuộc Vue*, không phải theo feature. Đây là điều quan trọng nhất cần nhớ vì nó quyết định file nào được phép import file nào.
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│  PageWrapper.vue  (editor entry)                               │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  .wk-editor-canvas (scroll container)                    │  │
-│  │    ┌────────────────────────────────────────────────┐    │  │
-│  │    │  .wk-editor-body (responsive width per bp)     │    │  │
-│  │    │    <NodeRenderer node-id="ROOT" />             │    │  │
-│  │    │      ↓ getDef('root').component                │    │  │
-│  │    │      <RootCanvas v-for child />                │    │  │
-│  │    │        <FlexSection v-for child />             │    │  │
-│  │    │          <FlexBlock ... > <Heading ... />      │    │  │
-│  │    └────────────────────────────────────────────────┘    │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│  Teleport to body:                                             │
-│    <IndicatorOverlay />     ← vạch xanh khi đang drag          │
-│    <EdgeOverlays />         ← padding/margin SVG strips        │
-│    <ElementToolbar />       ← floating toolbar trên selected   │
-│    <SettingDialog />        ← popover hub (color picker, …)    │
-└────────────────────────────────────────────────────────────────┘
-       ↑          ↑         ↑         ↑          ↑          ↑
-   NodeStore  DndStore  UIStore  HistoryStore PageStore PageList
-                                                           Store
-                                                  + GlobalStylingStore
+┌─────────────────────────────────────────────────────────────┐
+│ TẦNG 4 — CHROME (Vue)                                       │
+│ Header · Toolbar (tool rail) · Sidebar · Trait · overlays    │
+│ Không render node, chỉ đọc/ghi store.                        │
+├─────────────────────────────────────────────────────────────┤
+│ TẦNG 3 — ELEMENT (Vue)                                      │
+│ nodes/<type>/index.vue — render một node ra DOM.             │
+│ Dùng mixin để lấy sẵn style đã merge, listener drag, v.v.    │
+├─────────────────────────────────────────────────────────────┤
+│ TẦNG 2 — STATE (Pinia)                                      │
+│ 11 store. Sự thật duy nhất. Component không giữ state trang. │
+├─────────────────────────────────────────────────────────────┤
+│ TẦNG 1 — LOGIC THUẦN (JS)                                   │
+│ composable/editor_v2/*.js — chạy được bằng plain Node,       │
+│ không import .vue. Nhờ vậy script CI validate được schema.   │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-7 Pinia store song song; node/dnd/ui/history là 4 store hot path; page/pageList/globalStyling phục vụ multi-page persistence.
+**Luật vàng về import**: tầng dưới **không bao giờ** import tầng trên.
 
-## 2. Data model
+Ngoại lệ được kiểm soát duy nhất là `registerElements.js` — file này cố tình import toàn bộ SFC element, và **chỉ được import một lần, từ `PageWrapper.vue`**. Nếu để glob đó nằm trong `registry.js` thì sẽ tạo vòng lặp `store → registry → SFC → mixin → store` và vỡ TDZ lúc khởi động.
 
-### Node shape
+---
 
-Mỗi node là một object trong `nodeStore.nodes` map:
+## 2. Data model — một node trông như thế nào
+
+`useNodeStore().nodes` là **map phẳng**, không phải cây lồng nhau:
+
+```js
+nodes: {
+  'ROOT':             { … },
+  'heading-a1b2c3d4': { … },
+  'text-e5f6g7h8':    { … },
+}
+```
+
+Một node đầy đủ:
 
 ```js
 {
-  id: 'flex-block-abc12345',          // genId(type) = `${type}-${randomString(8)}`
+  id: 'heading-a1b2c3d4',
   data: {
-    type: 'flex-block',               // key tra registry → component + meta
-    name: 'Block',                    // hiển thị Layers (mặc định = meta.label)
-    parent: 'ROOT' | 'fs_xxx' | null, // null chỉ với ROOT seed
-    nodes: ['fb_yyy', 'fb_zzz'],      // children IDs (thứ tự render)
-    isCanvas: true,                   // có chấp nhận drop con không
-    hidden: false,                    // ẩn render
-    custom: {},                       // free-form per-element data
+    type: 'heading',              // khóa tra registry
+    name: 'Heading',              // nhãn ở Layers (factory seed từ meta.label)
 
-    // ─── 5 BASE NAMESPACE ────────────────────────────────────
-    style:    { padding: '32px 0px', '--node-width': 'fill' },  // CSS responsive
-    config:   { contentWidth: 'fill_container' },               // data per-bp opt-in
-    specials: { htmlTag: 'h2' },                                // base-only metadata
-    events:   [{ id, name, action, target, payload? }],         // base-only behaviors
-    bindings: [{ id, source, field, target, transform? }],      // base-only data refs
+    // ─── 5 namespace dữ liệu ───────────────────────────────
+    style:    { '--text-color': '#111' },          // CSS,   CÓ responsive
+    config:   { textGlobalStyle: 'heading-2' },    // data,  CÓ responsive
+    specials: { htmlTag: 'h2', text: 'Xin chào' }, // base-only
+    events:   [ { id: 'EVENT_x', name: 'click', action: 'openPage', … } ],
+    bindings: [ { id: 'BINDING_x', target: { type:'product', kind:'title', id:'…' } } ],
 
-    // ─── STATES (override namespace, opt-in) ─────────────────
-    states: {                         // hover/active… mỗi state = { style, config }
-      hover: { style: { backgroundColor: '#0d6efd' }, config: {} },
+    // ─── override theo state (hover / active) ──────────────
+    states: { hover: { style: {…}, config: {…} } },
+
+    // ─── biến thể theo breakpoint ──────────────────────────
+    responsive: {
+      mobile: { style: {…}, config: {…}, states: { hover: {…} } },
     },
 
-    responsive: {                     // per-breakpoint overrides (text key)
-      desktop: { style: { '--layout-direction': 'horizontal' }, config: {} },
-      mobile:  { style: { '--layout-direction': 'vertical'   }, config: {},
-                 states: { hover: { style: { backgroundColor: '#0a58ca' }, config: {} } } },
-    },
+    // ─── quan hệ cây ───────────────────────────────────────
+    parent: 'flex-block-xxxx',
+    nodes:  ['text-e5f6g7h8'],   // id các con, ĐÚNG thứ tự hiển thị
+
+    isCanvas: false,   // true = chứa được con (drop target)
+    hidden:   false,
+    custom:   {},
   },
-  dom: HTMLElement | null,            // tham chiếu DOM thật (markRaw)
-  events: {},                         // runtime DOM-listener bag (Positioner/DnD)
+
+  // ─── runtime, KHÔNG serialize ───────────────────────────
+  dom:  HTMLElement | null,   // = doms[0]
+  doms: { 0: el, 1: el, … },  // nhiều bản render — xem §6
+  events: {},                 // túi listener runtime (tên giữ cho Positioner)
 }
 ```
 
-**Merged values** (cái element thực sự render — desktop-first cascade qua `mergeNamespace`):
-```js
-mergedStyle    = base.style    ⊕ responsive[desktop].style ⊕ ... ⊕ responsive[currentBp].style
-mergedConfig   = base.config   ⊕ ... (cùng cascade)
-mergedSpecials = base.specials                              // KHÔNG cascade
-stateOverride  = mergeStateMap(node, 'hover', currentBp)   // states[hover] cascade per-bp
-```
+### 2.1 Vì sao chia 5 namespace?
 
-`specials` / `events` / `bindings` đều base-only. `style` / `config` cascade. `states[state].{style,config}`
-cascade per-bp qua `mergeStateNs` (reader: `statefulNode.stateCss`, `TraitField.renderNode`).
-Non-cascading key: `config.hidden` (xem `mergeNode.js` `NON_CASCADING`).
+| Namespace | Nội dung | Responsive? | Override theo state? |
+|---|---|---|---|
+| `style` | Thuộc tính CSS / CSS var mà renderer biến thành style inline | ✅ | ✅ |
+| `config` | Dữ liệu *không phải CSS* nhưng có thể khác nhau theo màn hình (số cột, tỉ lệ ảnh, ẩn/hiện) | ✅ | ✅ |
+| `specials` | Thuộc tính HTML / metadata: `text`, `htmlTag`, `className`, `customCss` | ❌ base-only | ❌ |
+| `events` | Hành vi khi click: mở trang, mở popup, đi tới URL, mở giỏ, checkout | ❌ | ❌ |
+| `bindings` | Nối node với dữ liệu thật (sản phẩm / collection) — [chương 11](./11-dataset-binding.md) | ❌ | ❌ |
 
-Chi tiết shape + cascade algorithm xem [`07-traits-and-data.md`](./07-traits-and-data.md) sections 1-3.
+Ranh giới `style` vs `config` **không phải** "CSS hay không CSS" mà là **"renderer có biến nó thành CSS không"**. Ví dụ `imageRatio` nằm ở `config` vì component tự tính chứ không đổ thẳng ra `style=""`.
 
-### ROOT seed
+### 2.2 Cây nằm ở hai chỗ và phải luôn khớp
 
-```js
-{
-  id: 'ROOT',
-  data: { type: 'root', nodes: [], isCanvas: true, hidden: false, custom: {}, responsive: {}, parent: null, ... },
-}
-```
+`node.data.nodes[]` (danh sách con có thứ tự) và `child.data.parent` (con trỏ ngược). Mọi action trong node store luôn cập nhật **cả hai** trong cùng một `_commit`. Nếu chỉ sửa một phía, Layers panel và Positioner sẽ nhìn thấy hai cây khác nhau.
 
-`ROOT` là parent của mọi FlexSection. Không xoá / drag được. Locked thông qua `root_canvas/meta.js`: `rules: { hideInLayer: true, locked: true, edgeOverlay: { padding: false } }`.
+Ngoại lệ có chủ đích: **satellite** — node có `parent` nhưng **không** nằm trong `parent.data.nodes` (§7).
 
-### NodeTree shape
+---
 
-Khi factory hoặc `createNodeTree(def)` tạo nội dung mới (chưa vào store), kết quả là **NodeTree** chứ không phải dict:
+## 3. Mười một store
 
-```js
-{
-  rootNodeId: 'fb_xxx',
-  nodes: {
-    'fb_xxx': { id, data, dom, events },
-    'fb_yyy': { ... },
-  },
-}
-```
-
-Tree được `addNodeTree(tree, parentId, index)` merge vào store và re-parent gốc.
-
-## 3. Bảy stores (Pinia Options API)
-
-### `useNodeStore` (`src/stores/editor_v2/node.js`)
-
-**State:**
-- `nodes: { [id]: Node }` — flat map toàn bộ cây (kể cả satellites)
-- `events: { selected: [], hovered: null, dragged: [], indicator: null, state: null }`
-
-`events.state` = active variant cho selected node (`'default'|'hover'|'active'|null`).
-
-**Chokepoint:** `_commit(label, mutateFn, opts)` wrap mọi mutation trong `$patch` + `PatchRecorder` + record vào history. Xem [`10-history.md`](./10-history.md).
-
-**Action chính:**
-
-| Action | Mô tả |
-|---|---|
-| `addNodeTree(tree, parentId, index)` | Merge tree, auto-wrap non-section vào `flex-section` khi parent=ROOT |
-| `addNode(node, parentId, index)` | Add 1 node đã shaped sẵn (set parent + seed responsive slot) |
-| `addDetachedNode(node, parentId)` | Register satellite (không vào parent.data.nodes — no Layers/reorder) |
-| `move(nodeId, newParentId, newIndex)` | Re-parent, cycle-guard, root-only check, auto-wrap |
-| `reorderChildren(parentId, orderedIds)` | Permutation reorder cùng parent (1 history entry) |
-| `ungroup(nodeId)` | Dissolve container — lift children lên parent slot (refuse ROOT/parentless/child-of-ROOT) |
-| `remove(nodeId)` | Xoá node + descendants + satellites; refuse `rules.locked` |
-| `duplicate(nodeId)` | Deep-clone subtree với id mới (incl. events/bindings new id), insert sibling kế |
-| `setDOM(id, el)` | Ghi DOM ref (markRaw) — **KHÔNG** qua `_commit` |
-| `setSelected(id)` | Set selection + reset `events.state` về `meta.states.base` |
-| `setIndicator(indicator)` | Cập nhật indicator — **KHÔNG** qua `_commit` |
-| `setState(value)` | Set active variant cho selected node (hover/active editing) |
-| `changeStyle(id, patch, opts?)` | Ghi style — route per-key qua `defaultStyleSlot`; `opts.stateful=true` → `_routeState` divert stateful keys vào `states[state].style` |
-| `changeConfig(id, patch, opts?)` | Ghi config — route per-key qua `defaultConfigSlot` |
-| `changeSpecials(id, patch, opts?)` | Ghi specials (base-only) |
-| `resetStyle/Config/Specials(id, keys)` | Xoá key khỏi target slot (force throttle = 0) |
-| `addEvent/updateEvent/removeEvent` | Append/merge/xoá entry trong `node.data.events` (validate qua `eventDefinitions.js`) |
-| `addBinding/updateBinding/removeBinding` | Tương tự cho `node.data.bindings` |
-| `serialize()` | Snapshot payload gửi BE (bỏ runtime `dom`/`events`) |
-| `hydrate(payload)` | Replace toàn bộ state + clear history |
-
-**Internal (`_` prefix):**
-
-| Helper | Mô tả |
-|---|---|
-| `_commit(label, mutateFn, opts)` | Wrap mutation + record history; `opts: { silent, key, throttleMs }` |
-| `_writeNs(id, ns, patch, slot, opts)` | Single-slot write (ép breakpoint cụ thể hoặc base) |
-| `_writeByPolicy(id, ns, patch, slotForKey, bp, opts)` | Chia patch theo per-key responsive policy → multiple `_writeNs` |
-| `_resetNs(method, id, keys)` | Build `{key: undefined}` patch + ép throttle = 0 |
-| `_addEntry/_updateEntry/_removeEntry` | Generic array-namespace mutation cho events/bindings |
-| `_activeState(id)` | Trả variant đang edit (`null` nếu base hoặc id không phải selected) |
-| `_routeState(id, patch, opts, ns)` | Khi `opts.stateful` + có active state: divert key thuộc `def.statefulKeys` → `states[state][ns]` (per-bp qua `_writeState`/`writeStateWithRec`); return non-stateful rest cho flat write |
-| `_validateEventsWrite(id, nextEvents)` | Structural validation array events theo `getDef(type).events` |
-
-**Getter:**
-- `query` — mirror craft.js API: `query.node(id).get() / .getParent() / .isCanvas() / .isDroppable(...) / .ancestors() / .descendants() / .parentId()`. Positioner đọc qua đây.
-- `getNodeById`, `getParentId`, `getParent` — sugar helpers.
-
-### `useDndStore` (`src/stores/editor_v2/dnd.js`)
-
-**State:**
-- `dragTarget: null | { type: 'new', tree } | { type: 'existing', nodes: [id] }`
-- `draggedElementShadow: { el }` — preview ghost DOM (markRaw)
-- `positioner: Positioner instance` (markRaw)
-
-**Action:**
-
-| Action | Mô tả |
-|---|---|
-| `startCreate(tree, shadowEl)` | Drag từ sidebar (tạo mới) — instantiate Positioner |
-| `startMove(nodeId, shadowEl)` | Drag node đã tồn tại |
-| `endDrag(e)` | Commit drop nếu cursor trong `.wk-editor-body`, cleanup |
-| `setPositioner(p)`, `setDraggedShadow(el)` | markRaw helpers |
-
-### `useUIStore` (`src/stores/editor_v2/editor.js`, alias `'ui'`)
-
-**State:**
-- `breakpointActive: 'laptop'` (text key — `'desktop' | 'laptop' | 'tablet' | 'mobile'`, default `DEFAULT_BREAKPOINT='laptop'`)
-- `leftSidebarKeyActive: null` — panel sidebar hiện active
-- `toolbarKeyActive: null` — right-toolbar tab
-- `settingDialogs: []` — stack popover (color picker, asset picker…)
-- `animationPreviewNodeId: null` — id node đang preview animation
-
-**Action:**
-- `setStateField(key, value)` — generic setter
-- `setToolbarActive(key)` — toggle right-toolbar
-- `toggleDialogVis(e, type, data?)` — open/close popover
-- `closeDialog(type)`, `setDialogPosition(type, position)`
-
-### `useHistoryStore` (`src/stores/editor_v2/history.js`)
-
-**State:**
-- `timeline: [{ patches, inversePatches, label, key, ts, selectedBefore, selectedAfter }]`
-- `pointer: -1` — cursor entry hiện tại
-- `_silent: boolean` — set bởi `ignore()` để skip record
-- `_coalesce: { key, until } | null` — window gộp entry cùng key
-
-**Action:**
-- `record(patches, inversePatches, label, opts)` — gọi qua `_commit`, không gọi tay
-- `undo() / redo()` — apply inverse/forward patches + restore selection + scrub DOM refs
-- `ignore(fn)` — chạy fn không record (nest-safe)
-- `clear()` — reset timeline + pointer + coalesce (gọi sau `hydrate`)
-- `defaultThrottleMs() → 300` — default coalesce window
-
-**Getter:** `canUndo`, `canRedo`, `nextUndoLabel`, `nextRedoLabel`.
-
-Chi tiết timeline, throttle/coalesce, patch op shape: [`10-history.md`](./10-history.md).
-
-### `useEditorPageStore` (`src/stores/editor_v2/page.js`, alias `'editor_v2_page'`)
-
-**State:** `{ pageId, loading, saving, lastSavedAt, lastError, dirty }`
-
-**Action:**
-- `loadPage(pageId)` — fetch payload từ BE → `nodeStore.hydrate(payload)`
-- `savePage()` — `nodeStore.serialize()` → POST pageApi
-- `switchPage(newPageId, { saveDirty })` — save dirty page (optional) trước khi load page mới
-- `markDirty()` — gọi từ watch trên `nodeStore.nodes` (debounced)
-
-### `usePageListStore` (`src/stores/editor_v2/pageList.js`)
-
-**State:** `{ siteId, pages: [], loading, lastError }`
-
-**Getter:** `homePage`, `byId`.
-
-**Action:** `loadPages(siteId)`, `createPage({name, slug, isHome})`, `renamePage(pageId, {name, slug})`, `deletePage(pageId)`.
-
-Header `PagePickerDropdown` đọc store này.
-
-### `useGlobalStylingStore` (`src/stores/editor_v2/globalStyling.js`)
-
-**State:** site-wide design tokens — `presets`, `currentBp` (mirror UI).
-
-**Action:**
-- `getNodeStyles(node, elementType)` / `getNodeStylesAuto(node)` — compose preset styles theo `node.data.specials.preset` (slug)
-- `getNodeClass(node, elementType)` — return CSS class name
-- `updatePresetStyle(elementType, slug, cssKey, cssValue)` — update token
-- `load(pageId)` / `save(pageId)` — persist qua site API
-- `refreshCSS()` — inject CSS variables vào `<style>` root
-
-Element widget (vd HeadingV2) qua mixin/computed kết hợp `nodeBase.commonStyleData` + `globalStylingStore.getNodeStylesAuto(node)`.
-
-## 4. Registry pattern
-
-### Vấn đề muốn giải
-
-Trước refactor: NodeRenderer hardcode switch, Positioner hardcode rule root-only, nodeFactory hardcode shape mỗi element. Thêm element = sửa 4-5 file.
-
-### Sau refactor
-
-Mỗi element folder tự khai báo `meta` trong file riêng. Registry tự lookup + wrap factory + precompute allowedKeys + renderers + statefulKeys.
-
-```
-nodes/heading/
-  ├── index.vue        ← component + factory (imports meta từ ./meta.js)
-  ├── meta.js          ← Pure data: type, label, traits, rules, defaults, states?, satellite? (NO Vue, NO @/)
-  └── ai.js            ← (optional) AI hints — lazy-loaded
-```
-
-**Meta shape (đầy đủ tùy chọn):**
-
-```js
-// meta.js
-export const meta = {
-  type: 'button',                   // unique key (kebab-case)
-  label: 'Button',
-  category: 'basic',                // sidebar group: 'layout' | 'basic' | 'system'
-  showInSidebar: true,
-  isContainer: false,
-  rules: {
-    isRootOnly: false,
-    locked: false,                  // không delete/duplicate/drag riêng
-    hideInLayer: false,             // ẩn khỏi Layers panel
-    isContentEditable: false,       // bật editableText mixin
-    edgeOverlay: { padding: true, marginSides: { left: false } },  // overlay rule
-    canDropInto: (parentType) => true,                              // src-side drop guard
-    nodeChildAllows: [],            // parent-side whitelist: chỉ chấp nhận child types này; [] = không hạn chế
-  },
-  defaults: {
-    style:    { '--node-width': 'fit', padding: '12px 24px' },
-    config:   {},
-    specials: {},
-    responsive: { mobile: { padding: '8px 16px' } },               // flat OK — normalizeResponsiveSlot tự route
-  },
-  states: {                                                        // optional — variant state UI (hover/active)
-    base: 'default',
-    variants: [
-      { value: 'default', label: 'Default' },
-      { value: 'hover',   label: 'Hover', selector: ':hover'   },
-      { value: 'active',  label: 'Active', selector: ':active' },
-    ],
-    groups: ['Background', 'Shape'],                               // chỉ groups này dùng state UI
-  },
-  satellite: { type: 'list-item', configKey: 'satelliteId' },      // optional — child node auto-created
-  events: { on: ['click', 'hover'], actions: ['openPage', 'openPopup', 'goToUrl'] },  // optional — event slots
-  traits: {
-    general: [
-      { key: 'layout',   label: 'Layout',   attributes: ['width_select', 'padding'] },
-      { key: 'styling',  label: 'Styling',  attributes: ['bg_color', 'border'] },
-    ],
-    advanced: [
-      { key: 'spacing',  label: 'Spacing',  attributes: ['padding_margin'] },
-    ],
-  },
-}
-
-// index.vue
-import { meta as baseMeta } from './meta.js'
-import { createNode } from '@/composable/editor_v2/createNode'
-
-export default { /* Vue Options API component */ }
-export const meta = {
-  ...baseMeta,
-  // Factory trả node minimal — registry wrap để fill defaults missing keys.
-  factory: (overrides) => createNode({ type: 'button', style: overrides.style || {} }),
-}
-```
-
-**`registerElement(meta, component)` làm 5 việc:**
-
-1. **Normalize defaults** — đảm bảo `{ style, config, specials, states, responsive }`.
-2. **Wrap factory** — sau khi factory return, merge defaults vào missing keys (factory/overrides win). Seed `node.data.name` từ `meta.label`. Normalize per-bp slots qua `normalizeResponsiveSlot`; seed default `states[state]` per state/ns.
-3. **Precompute `allowedKeys`** — walk `meta.traits.*.attributes`, resolve qua `DEFINITIONS_DATA.writes`, build `{style: Set, config: Set, specials: Set}`. Chỉ gồm flat writeKey (state writes đi đường riêng `writeStateWithRec`, không qua guard này). Consumer: `writeNamespaceWithRec`.
-4. **Precompute `renderers`** — ordered `(node)→CSS` array, seed `[flexCanvas, canvasNodeWrapper]` rồi walk traits + lookup `STYLE_RENDERERS[key]`. Consumer: `nodeBase.commonStyleData`.
-5. **Precompute `statefulKeys`** — `collectStatefulWriteKeys(meta)` — Set writeKey eligible per-state (keys thuộc group có `stateful: true`, trừ attr opt-out `stateful: false`). Consumer: `_routeState`.
-
-**Bootstrap:** `registerElements.js` chạy `import.meta.glob('@/components/editor_v2/nodes/*/index.vue', { eager: true })`, lặp module, gọi `registerElement(meta, default)`. Import từ `PageWrapper` 1 lần.
-
-**Consumers:**
-
-| File | Đọc gì từ registry |
-|---|---|
-| `NodeRenderer` | `getDef(type).component` để render |
-| `Positioner` | `isRootOnlyType(type)`, `canDropInto(src, parent)`, `getNodeChildAllows(parent)` để biết drop rule |
-| `node.js` store | `isRootOnlyType`, `isLockedType`, `getAllowedKeys(type, ns)`, `getNodeChildAllows(parent)`, `getDef(type).statefulKeys`, `getDef(type).states`, `getDef(type).events` |
-| `nodeFactory.factoryFor` | Wrapped factory + defaults |
-| `nodeBase.commonStyleData` | `getDef(type).renderers` array |
-| `satelliteOwner` | `getDef(type).satellite` để ensure child |
-| `statefulNode` | `getDef(type).states` + `mergeStateMap` (đọc `data.states[state]`) để inject CSS |
-| `editableText` | `getDef(type).rules.isContentEditable` |
-| Sidebar pickers | `listSidebar()` để render danh sách element |
-| Layers panel | `getDef(type).label/icon` |
-| Trait panel | `getDef(type).traits` |
-| AI gen | `dumpRegistryForLLM()` walk registry build LLM schema |
-
-### Tại sao tách `registry.js` và `registerElements.js`?
-
-**Để tránh import cycle TDZ.** Chain trước khi tách:
-
-```
-node.js store
-  ├── import { isRootOnlyType } from 'registry'
-  └── registry
-        ├── import.meta.glob('nodes/*.vue', { eager: true })  ← KÉO MỌI ELEMENT VÀO
-        └── nodes/heading/index.vue
-              └── import { nodeLeaf } from 'mixins'
-                    └── mixins/nodeBase
-                          └── import { useNodeStore } from 'node.js'  ← TDZ!
-```
-
-**Fix:** `import.meta.glob` chỉ ở `registerElements.js`, load 1 lần từ `PageWrapper`. `registry.js` còn lại pure data + lookup, không kéo SFC.
-
-**Rule cứng:**
-- `registry.js` KHÔNG import component nào (kể cả via re-export).
-- `meta.js` files PHẢI Vue-free (NO `import` từ `@/components`).
-- `mixins/*` KHÔNG import element SFC.
-- Stores KHÔNG import component.
-
-Cycle check script: xem [`06-troubleshooting.md`](./06-troubleshooting.md) § Cycle check.
-
-## 5. Mixin layering
-
-6 mixin (Options API mixins — composables bị project ban):
-
-```
-nodeBase  ─────────────────┐
-  ↑ extends                │  Element compose:
-nodeContainer ←────────────┤
-                           │  Heading:   nodeLeaf + draggableNode + editableText (gắn sẵn vào nodeBase)
-draggableNode (orthogonal)─┤  Text:      nodeLeaf + draggableNode + editableText
-                           │  Button:    nodeLeaf + draggableNode + statefulNode
-editableText (rule opt-in) ┤  Image:     nodeLeaf + draggableNode
-                           │  Icon:      nodeLeaf + draggableNode
-statefulNode (state opt-in)┤  Block:     nodeContainer + draggableNode
-                           │  Section:   nodeContainer + draggableNode
-satelliteOwner (sat opt-in)┤  Tab:       nodeContainer + draggableNode + satelliteOwner
-                           │  List:      nodeContainer + draggableNode + satelliteOwner
-nodeLeaf = alias nodeBase ─┘  Root:      (đặc biệt — không mixin, locked)
-```
-
-### `nodeBase` cung cấp
-
-```js
-props: { node, nodeId }
-computed: {
-  events                  // mapState(useNodeStore, ['events'])
-  breakpointActive        // mapState(useUIStore, ['breakpointActive']) — text key
-  isSelected              // events.selected.includes(nodeId)
-  mergedStyle             // cascade qua mergeNamespace (style ns)
-  mergedConfig            // cascade qua mergeNamespace (config ns)
-  mergedSpecials          // base only — node.data.specials
-  commonStyleData         // Object.assign({}, ...def.renderers.map(r => r(node))) — precomputed CSS
-  nodeAttrs               // { data-node-id, data-node-type, draggable: 'true' }
-  nodeClassMap            // { 'wk-node-selected': isSelected, hidden: mergedConfig.hidden }
-  nodeListenersBase       // { click: onClick }
-}
-lifecycle: mounted / updated / beforeUnmount → setDOM (markRaw)
-methods: {
-  onClick                 // stopPropagation + setSelected(nodeId)
-  changeStyle(patch, opts)
-  changeConfig(patch, opts)
-  changeSpecials(patch)
-}
-```
-
-**Template root convention:**
-```vue
-<template>
-  <div ref="root"
-       v-bind="{ ...nodeAttrs, ...editableAttrs }"
-       :class="nodeClassMap"
-       :style="{ ...commonStyleData, /* element-specific overrides last */ }"
-       v-on="{ ...nodeListenersBase, ...dragListeners, ...editableListeners, ...dropListeners }">
-    <component :is="'style'" v-if="stateCss">{{ stateCss }}</component>
-    ...
-  </div>
-</template>
-```
-
-`commonStyleData` ĐI TRƯỚC element-specific style — element giữ final word cho layout vars, gap, padding override.
-
-### `nodeContainer` thêm
-
-```js
-computed: {
-  isEmpty                 // node.data.nodes.length === 0
-  isDropTarget            // indicator.placement.parent.id === nodeId
-}
-methods: {
-  onDragOver(e)           // positioner.computeIndicator(nodeId, x, y) → setIndicator
-  onDragEnter(e)          // preventDefault + stopPropagation
-}
-```
-
-### `draggableNode` (object methods + computed)
-
-```js
-computed: {
-  dragListeners           // { dragstart, dragend }
-}
-methods: {
-  onMoveDragStart(e)      // stopProp + setSelected + createShadow + startMove + classList
-  onMoveDragEnd(e)        // endDrag + cleanup classList
-}
-```
-
-Opt-out cho `locked` type qua check `getDef(type).rules.locked`.
-
-### `editableText` (opt-in via `meta.rules.isContentEditable`)
-
-```js
-data: { isEditing: false }
-computed: {
-  isContentEditable       // getDef(type).rules.isContentEditable
-  editableAttrs           // { spellcheck, tabindex, contenteditable } khi rule = true
-  editableListeners       // { dblclick → enter editing, blur → commit, keydown }
-}
-```
-
-Khi rule off, cả 2 bundle là `{}` → element inert. Image / Video share `nodeLeaf` mà không phải re-implement.
-
-### `statefulNode` (opt-in via `meta.states`)
-
-```js
-computed: {
-  stateDef                // getDef(type).states
-  stateCss                // compose CSS rules `[data-node-id="..."]:hover { padding: 12px !important; … }` cho mỗi non-base variant
-}
-```
-
-Component template phải có `<component :is="'style'" v-if="stateCss">{{ stateCss }}</component>` ở root. CSS dùng `!important` để beat inline base style.
-
-Reader: `mergeStateMap(node, state, currentBp)` flat-union `data.states[state].{style,config}` cascade per-bp (qua `mergeStateNs`, 1 level sâu hơn `mergeNamespace`). State sống ở namespace `states` riêng, KHÔNG trong `config`.
-
-### `satelliteOwner` (opt-in via `meta.satellite`)
-
-```js
-computed: {
-  satelliteMeta           // getDef(type).satellite | null
-  satelliteId             // getConfig(node, satellite.configKey, null)
-  satelliteNode           // nodeStore.nodes[satelliteId]
-}
-mounted: this.$nextTick(() => this.ensureSatellite())
-methods: {
-  ensureSatellite()       // lazy-create satellite child qua factoryFor + addDetachedNode
-}
-```
-
-Vd `tab` owner ↔ `tab-content` satellite: owner template render qua `<NodeRenderer :node-id="satelliteId" />`. Satellite KHÔNG nằm trong `data.nodes` — không xuất hiện trong Layers, không drag tách rời.
-
-### Element compose
-
-```js
-import { nodeContainer, draggableNode } from '@/composable/editor_v2/mixins'
-import { satelliteOwner } from '@/composable/editor_v2/mixins/satelliteOwner'
-export default {
-  mixins: [nodeContainer, draggableNode, satelliteOwner],
-  // ...
-}
-```
-
-Vue merge mixin theo thứ tự, component override mixin nếu trùng key.
-
-### Cảnh báo về mixin
-
-- Mixin che nguồn property — debug `this.isSelected` không jump tới `nodeBase.js` được. Vue 3 khuyến nghị composables hơn mixins, nhưng project ban Composition API.
-- Nếu trùng tên method → component thắng.
-
-## 6. CSS architecture
-
-**Global** (`src/assets/editor_v2/node.css`), import 1 lần từ `PageWrapper`:
-- `.wk-node-selected` — outline xanh khi selected
-- `.wk-node-placeholder` + `__content` + `__text` — empty-container placeholder
-- `[data-node-type][draggable="true"]` — cursor grab/grabbing
-- `.wk-flex-block--drop-active`, `.wk-flex-section--drop-active` — tint xanh khi indicator target
-- `body.wk-dragging` — flag drag session
-
-**Scoped** trong từng element SFC — chỉ structural CSS (flex direction, min-height, padding mặc định).
-
-**State CSS** — `<style>` inject động bởi `statefulNode` mixin. Selector `[data-node-id="..."]:<selector>` để chỉ apply cho instance đó.
-
-**Global styling** — `useGlobalStylingStore.refreshCSS()` inject CSS variables vào `<style id="wk-global-styling">` ở `<head>`.
-
-## 7. Cycle avoidance rules
-
-Khi sửa code editor_v2, ghi nhớ:
-
-1. **`registry.js` không import component nào.** Pure data + lookup.
-2. **`mixins/*` chỉ import từ stores + composables**, không import element SFC.
-3. **Stores chỉ import từ `composable/editor_v2/`**, không import component.
-4. **Composables (`Positioner`, `createNode`, …) không import store top-level** — qua function call (`useXxxStore()` chỉ chạy khi gọi runtime).
-5. **`constants.js` là leaf module** — không import gì.
-6. **`ai/*` chỉ glob `nodes/*/meta.js` + `ai.js`** — KHÔNG glob `index.vue` (tránh kéo Vue vào AI chunk).
-
-Test cycle bằng script tĩnh (xem `06-troubleshooting.md` § Cycle check).
-
-## 8. Folder responsibility cheatsheet
-
-| Folder | Trách nhiệm | KHÔNG được làm |
+| Store | File | Giữ gì |
 |---|---|---|
-| `composable/editor_v2/` | Logic JS thuần, không UI | Import Vue component |
-| `composable/editor_v2/mixins/` | Compose-able behaviors cho element | Import element SFC |
-| `composable/editor_v2/ai/` | AI gen pipeline | Import .vue / kéo runtime store top-level |
-| `composable/editor_v2/templates/` | Page-template data | Import Vue component |
-| `stores/editor_v2/` | State + actions | Import component |
-| `components/editor_v2/nodes/` | Element SFC (folder-per-type) | Import lẫn nhau (qua NodeRenderer) |
-| `components/editor_v2/elements/` | Editor chrome (renderer, overlays, toolbar) | Là node element |
-| `components/editor_v2/components/sidebar/` | Sidebar groups + Element pickers + Layers | Drag-drop logic |
-| `components/editor_v2/components/trait/` | Trait panel + widgets + defs | Drag-drop |
-| `components/editor_v2/components/trait/fields/` | Pure data (definitions, schema, defs/) | Import Vue component |
-| `components/editor_v2/components/trait/components/fields/` | Vue widget files | Logic ngoài widget scope |
-| `components/editor_v2/components/color_picker/` | Color picker UI | Trait-specific logic |
-| `assets/editor_v2/` | Global CSS | Component-specific style |
+| `useNodeStore` | `node.js` | Cây node + toàn bộ action ghi + `events` (`selected` / `hovered` / `dragged` / `indicator` / `state`) |
+| `useDndStore` | `dnd.js` | Phiên kéo thả đang chạy: `dragTarget`, shadow DOM, instance `Positioner` |
+| `useUIStore` | `editor.js` | View state: `breakpointActive`, `toolbarKeyActive`, `leftSidebarKeyActive`, `settingDialogs[]`, `canvasScale`, `selectionAnchorEl`, `animationPreviewNodeId`, `accordionItemIndexActive` |
+| `useHistoryStore` | `history.js` | Timeline patch undo/redo + coalesce |
+| `useEditTextStore` | `edittext.js` | Có đang inline-edit không, editor Tiptap đang sống, trạng thái B/I/U của vùng chọn |
+| `useEditorPageStore` | `page.js` | Trang đang mở: `pageId`, `loading/saving/publishing`, `dirty`; `loadPage` / `savePage` / `publishSite` / `switchPage` |
+| `usePageListStore` | `pageList.js` | Danh sách page của site + cache `sources[pageId]` + tự tạo page mặc định |
+| `usePageActionStore` | `pageAction.js` | State dialog rename / duplicate / copy-to-page / delete |
+| `useGlobalStylingStore` | `globalStyling.js` | Preset typography toàn site (`heading-1`…`text-3`) → sinh CSS inject vào `<head>` |
+| `useProductDatasetStore` | `product_dataset.js` | Fetch + cache sản phẩm (`products` cho picker, `productsSaved` cho canvas) |
+| `useCategoryDatasetStore` | `category_dataset.js` | Tương tự cho collection, thêm feed `allCollections` |
+
+Ranh giới cần tôn trọng:
+
+- `useNodeStore` **chỉ** biết cây node. Không biết page id, không gọi API.
+- `useEditorPageStore` **chỉ** biết persistence. Nó gọi `nodeStore.serialize()` / `hydrate()` chứ không đụng từng node.
+- `useUIStore` **chỉ** biết giao diện editor. Không có gì trong đây được lưu xuống BE.
+
+---
+
+## 4. Registry — nối `type` với component
+
+### 4.1 Lúc boot
+
+`PageWrapper.vue` import `registerElements.js` (side-effect). File này glob eager mọi `nodes/*/index.vue`:
+
+```js
+const modules = import.meta.glob('@/components/editor_v2/nodes/*/index.vue', { eager: true })
+for (const path in modules) {
+  const m = modules[path]
+  if (m && m.meta) registerElement(m.meta, m.default)
+}
+```
+
+Mỗi element folder phải export **hai** thứ từ `index.vue`:
+
+- `export default` → component Vue
+- `export const meta` → dữ liệu thuần, thường viết `{ ...baseMeta, factory }` với `baseMeta` import từ `meta.js` cạnh bên
+
+Vì sao tách `meta.js`? Vì `meta.js` **không import Vue** → script CI (`scripts/validate-trait-schemas.mjs`) đọc được bằng plain Node.
+
+### 4.2 `registerElement` tính sẵn 5 thứ
+
+Điểm dễ bỏ sót: registry **không lưu meta nguyên xi**, nó *tính trước* để runtime khỏi phải đi lại `traits` mỗi lần render.
+
+```js
+reg[meta.type] = { ...meta, factory, defaults, allowedKeys, renderers, statefulKeys, component }
+```
+
+| Trường tính sẵn | Là gì | Ai dùng |
+|---|---|---|
+| `factory` | Factory gốc **được bọc thêm một lớp**: điền `meta.defaults` vào key node chưa có (fill-missing, override thắng default), seed `data.name` từ `meta.label`, seed `responsive` và `states` mặc định | `createNodeTree`, `factoryFor` |
+| `defaults` | `meta.defaults` chuẩn hóa đủ 5 khóa `{style, config, specials, states, responsive}` | nút "Reset to default" |
+| `allowedKeys` | `Set` writeKey hợp lệ theo từng namespace, **trích ra từ `meta.traits`** | `writeNamespaceWithRec` trong node store — key lạ bị **drop kèm `console.warn`** |
+| `renderers` | Mảng hàm `(node) → object CSS` theo thứ tự khai báo trait; luôn mở đầu bằng `flexCanvas` + `canvasNodeWrapper` | `nodeBase.commonStyleData` |
+| `statefulKeys` | `Set` writeKey được phép lưu riêng cho state hover/active | `node._routeState` |
+
+Hệ quả thực tế:
+
+> **Trait không khai trong `meta.traits` thì `changeStyle` / `changeConfig` sẽ chặn key đó.**
+> Thấy log `unknown key 'xxx' (not declared in traits) — dropped` là do đây, không phải lỗi store.
+
+`allowedKeys` rỗng ⇒ store **bỏ qua** kiểm tra (dành cho node hệ thống / node cũ không khai trait).
+
+### 4.3 API tra cứu
+
+```js
+getDef(type)                     // → entry registry đầy đủ (hoặc null)
+listSidebar()                    // → các def có showInSidebar
+isRootOnlyType(type)             // meta.rules.isRootOnly
+isLockedType(type)               // meta.rules.locked
+canDropInto(srcType, parentType) // meta.rules.canDropInto(parentType)
+getNodeChildAllows(type)         // meta.rules.nodeChildAllows → whitelist type con
+factoryFor(type, overrides)      // tạo node mới đã seed defaults
+getAllowedKeys(type, ns)         // Set | null
+getDefaultsFor(type)
+```
+
+---
+
+## 5. Mixin — để element viết ít code nhất có thể
+
+`composable/editor_v2/mixins/index.js` là barrel:
+
+| Mixin | Cho ai | Cung cấp |
+|---|---|---|
+| `nodeBase` | mọi element | props (`node`, `nodeId`, `isClone`, `nodeIndex`), `mergedStyle` / `mergedConfig` / `mergedSpecials`, `commonStyleData`, `nodeAttrs`, `nodeClassMap`, `nodeListenersBase`, `onClick`; đăng ký `dom` vào store ở `mounted/updated/beforeUnmount`; patch animation preview |
+| `nodeLeaf` | element lá | `nodeBase` + `editableText` |
+| `nodeContainer` | element chứa con | `nodeBase` + `isEmpty`, `isDropTarget`, `dropListeners`, thêm class `wk-drop-active` |
+| `draggableNode` | element kéo được | `dragListeners` = `{ dragstart, dragend }` |
+| `editableText` | element sửa text tại chỗ | `isEditing`, `textEditor`, `startEdit/finishEdit`, `editableAttrs/editableListeners` — **inert** nếu `meta.rules.isContentEditable` không bật |
+| `satelliteOwner` | element có node con "ẩn" | `ensureSatellite()`, `getSatelliteNode(configKey)`, `setSatelliteDom()` |
+| `statefulNode` | element có hover/active | computed `stateCss` → SFC render `<component :is="'style'">` |
+| `dataset` | element bind dữ liệu | `nodeLeaf + draggableNode + statefulNode` cộng thêm `binding` / `target` / `type` / `kind` / `id` / `item`, `getValue()`, `resolveFieldValue()` — [chương 11](./11-dataset-binding.md) |
+
+Khai báo điển hình:
+
+```js
+mixins: [nodeContainer, draggableNode]           // container thường
+mixins: [nodeLeaf, draggableNode]                // lá có text
+mixins: [nodeLeaf, draggableNode, statefulNode]  // nút có hover
+mixins: [dataset]                                // element dữ liệu (đã gộp 3 cái trên)
+```
+
+---
+
+## 6. `dom` vs `doms` — một node, nhiều bản render
+
+Trước đây mỗi node chỉ có một element DOM. Điều đó **không còn đúng**: `list-dataset` render *cùng một* node `dataset-block` cho N sản phẩm, `text-marquee` nhân bản item để chạy vòng lặp.
+
+Vì vậy:
+
+```js
+setDOM(id, el, index = 0)   // node.doms[index] = el;  index 0 gán luôn vào node.dom
+```
+
+- `node.dom` = bản render đầu tiên — Positioner và các phép đo cũ vẫn dùng.
+- `node.doms[i]` = bản render thứ i.
+- Component nhận prop `isClone` + `nodeIndex` để tự đăng ký đúng slot.
+- Khi người dùng click, `nodeBase.onClick` lưu **đúng element vừa click** vào `uiStore.selectionAnchorEl`; overlay và toolbar bám theo element đó thay vì luôn bám bản số 0.
+
+Cả `dom` lẫn `doms` đều `markRaw` — DOM node tuyệt đối không để Vue theo dõi reactive.
+
+---
+
+## 7. Satellite — node con nằm ngoài cây
+
+Một số element cần node con *chỉnh trait riêng được* nhưng **không** được hiện trong Layers, không kéo được, không xóa riêng được. Ví dụ: nút của một `tab`, header của một `accordion-item`.
+
+Giải pháp: **satellite**.
+
+```js
+// trong meta
+satellite: [{ type: 'tab-item', configKey: 'tabItemId' }]
+```
+
+- Node satellite được tạo **lười** ở `mounted`, qua `satelliteOwner.ensureSatellite()`.
+- Nó vào `nodes` map và có `data.parent = owner.id`…
+- …nhưng **không** vào `owner.data.nodes` → Layers / Positioner / reorder không thấy.
+- Owner giữ id của nó ở `config[configKey]`.
+- `duplicate()` và `remove()` trong node store có nhánh riêng quét satellite: tìm node có `parent` nằm trong tập đang xử lý nhưng **không** nằm trong `data.nodes` của owner.
+
+`meta.satellite` nhận **cả object đơn lẫn mảng** — một owner có thể có nhiều satellite.
+
+---
+
+## 8. Chokepoint ghi state: `_commit`
+
+Mọi action ghi vào cây đều đi qua đúng một hàm:
+
+```js
+_commit(label, mutateFn, opts = {}) {
+  const selectedBefore = [...this.events.selected]
+  let rec
+  this.$patch((state) => {
+    rec = new PatchRecorder(state)   // rec.set / rec.insert / rec.remove
+    mutateFn(rec, state)             // vừa mutate, vừa thu patch
+  })
+  if (!rec || !rec.hasChanges()) return
+  if (!opts.silent) {
+    useHistoryStore().record(rec.getForward(), rec.getInverse(), label, {
+      key: opts.key || label,
+      throttleMs: opts.throttleMs || 0,
+      selectedBefore,
+      selectedAfter: [...this.events.selected],
+    })
+  }
+}
+```
+
+Nhờ vậy bạn được **miễn phí**: undo/redo, gộp thao tác kéo liên tục thành một entry, khôi phục selection khi undo. Chi tiết ở [chương 10](./10-history.md).
+
+> Viết action mới mà mutate `this.nodes` trực tiếp thay vì qua `_commit` thì thao tác đó **không undo được** và có thể làm lệch timeline.
+
+Action đi qua `_commit`:
+`move` · `reorderChildren` · `ungroup` · `remove` · `duplicate` · `addNode` · `addNodeTree` · `changeStyle` · `changeConfig` · `changeSpecials` · `resetStyle/Config/Specials` · `resetNodeToDefault` · `addEvent/updateEvent/removeEvent` · `addBinding/updateBinding/removeBinding`.
+
+Cố ý **không** đi qua: `setSelected` · `setDOM` · `addDetachedNode` · `setState` · `setIndicator` — đều là state runtime, không phải nội dung trang.
+
+---
+
+## 9. Đọc dữ liệu node: `merged*` và `get*`
+
+Hai đường đọc, dùng đúng chỗ:
+
+**Trong component element** — computed của `nodeBase`:
+
+```js
+this.mergedStyle      // mergeNamespace(node, 'style', bpActive)
+this.mergedConfig
+this.mergedSpecials   // = node.data.specials (không cascade)
+this.commonStyleData  // chạy hết def.renderers + parse specials.customCss
+```
+
+**Ngoài component** (trait widget, util, store) — helper của `get.js`:
+
+```js
+getStyle(node, key, fallback, { breakpoint })   // có cascade
+getConfig(node, key, fallback, { breakpoint })
+getSpecials(node, key, fallback)                // không cascade
+```
+
+Cả hai đều đi qua `mergeNamespace` nên **luật cascade chỉ có một**: xem [chương 07 §4](./07-traits-and-data.md).
+
+---
+
+## 10. Checklist đọc code lần đầu
+
+1. `stores/editor_v2/node.js` — đọc `state()` và danh sách `actions`. Đây là bộ xương.
+2. `nodes/heading/meta.js` + `nodes/heading/index.vue` — đối chiếu `traits` với panel bên phải trong app.
+3. `composable/editor_v2/registry.js` — hiểu `registerElement` tính sẵn những gì.
+4. `components/editor_v2/elements/NodeRenderer.vue` — ~30 dòng, là toàn bộ cơ chế render.
+5. `components/editor_v2/Trait.vue` — hiểu panel phải chỉ đọc `meta.traits` chứ không biết element nào.
+
+Xong 5 file đó là nắm khoảng 70% hệ thống.

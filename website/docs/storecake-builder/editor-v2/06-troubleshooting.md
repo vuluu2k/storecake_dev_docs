@@ -5,466 +5,199 @@ title: 06 — Troubleshooting
 
 # 06 — Troubleshooting
 
-Lỗi thường gặp, cách debug, checklist khi sửa code.
+Bắt đầu từ triệu chứng, đi ngược về nguyên nhân.
 
-## 1. Lỗi build / runtime phổ biến
+---
 
-### `Cannot access 'useNodeStore' before initialization`
-
-**Trigger:** Khi vào editor, console hiện ReferenceError ở `mixins/nodeBase.js`.
-
-**Nguyên nhân:** Import cycle TDZ. Chain:
-```
-store.js → registry.js → (eager-import nodes/) → mixins → store.js
-```
-
-**Fix:** `registry.js` KHÔNG được eager-import elements. Phần `import.meta.glob({ eager: true })` phải nằm trong `registerElements.js`, chỉ load từ `PageWrapper`.
-
-**Check nhanh:**
-```bash
-grep "import.meta.glob" src/composable/editor_v2/registry.js
-# Phải không có. Nếu có → dời sang registerElements.js
-```
-
-### `[unknown: xxx]` thay vì render element
-
-**Trigger:** Canvas hiện text `[unknown: heading]` (hoặc type khác).
-
-**Nguyên nhân:** Type không match meta nào trong registry.
-
-**Check:**
-```js
-import('@/composable/editor_v2/registry').then(r => console.log(r.registry))
-// Xem có key 'heading' không?
-```
-
-Các trường hợp:
-- Folder `nodes/<name>/index.vue` không tồn tại / sai cấu trúc
-- Quên `export const meta = {...}` trong `index.vue` (chỉ export trong `meta.js` không đủ — `index.vue` PHẢI re-spread)
-- `meta.type` không khớp `node.data.type`
-- `registerElements.js` chưa được import từ PageWrapper → registry rỗng
-
-**Fix:**
-```bash
-ls src/components/editor_v2/nodes/                            # folder tồn tại?
-ls src/components/editor_v2/nodes/<name>/                     # có index.vue + meta.js?
-grep "export const meta" src/components/editor_v2/nodes/<name>/index.vue   # re-export?
-grep "registerElements" src/components/editor_v2/PageWrapper.vue           # bootstrap?
-```
-
-### Drag không kéo được từ sidebar
-
-**Trigger:** Sidebar item không drag được hoặc drag không tạo element.
-
-**Check thứ tự:**
-1. `display: contents` hay `display: block` trên `.element-drag-v2`? Phải `block`. `contents` xoá box → HTML5 drag không nhận.
-2. `dragstart` có fire? Console log trong `_onDragStart`.
-3. `tree` factory có return valid NodeTree (`{ rootNodeId, nodes }`)?
-4. `dndStore.startCreate` có chạy? Set breakpoint.
-5. Cursor có vào `.wk-editor-body`? Nếu không → `endDrag` skip apply do `dropInsideCanvas = false`.
-
-### Drag child chọn parent
-
-**Trigger:** Drag Heading → ElementToolbar hiện trên Block.
-
-**Nguyên nhân:** `@dragstart` bubble lên Block, handler Block chạy sau và override.
-
-**Fix:** `e.stopPropagation()` đầu `onMoveDragStart` — đã có sẵn trong `draggableNode` mixin. Nếu element override riêng phải tự stop.
-
-### Indicator vạch xanh không hiện khi drag
-
-**Check:**
-1. `dndStore.positioner` có khác null trong khi drag?
-2. `positioner.computeIndicator` có return value (non-undefined)?
-3. `nodeStore.events.indicator` có được set?
-4. `IndicatorOverlay.show` computed có return true?
-   - Ẩn nếu target container EMPTY (placeholder đã đủ)
-
-### Padding strip chỉ hiện 1 cạnh
-
-**Nguyên nhân:** `EdgeOverlays.updateRect` thiếu `right` và `bottom`.
-
-**Fix:**
-```js
-this.rect = {
-  top: r.top, left: r.left, width: r.width, height: r.height,
-  right: r.left + r.width,
-  bottom: r.top + r.height,
-}
-```
-
-### Drag flex-section nhảy vào trong flex-block
-
-**Trigger:** Đang move 1 Section, hover qua Block → indicator trỏ vào Block.
-
-**Nguyên nhân:** `Positioner.isDraggingRootOnly()` không nhận diện đúng. Check `meta.rules.isRootOnly: true` cho Section.
-
-**Fix:**
-```js
-import('@/composable/editor_v2/registry').then(r =>
-  console.log(r.isRootOnlyType('flex-section'))  // phải true
-)
-```
-
-### Element không xuất hiện sau khi tạo folder
-
-**Trigger:** Tạo `nodes/my_element/` + `index.vue` + `meta.js`, HMR reload, nhưng element không hiện.
-
-**Nguyên nhân:**
-1. Glob pattern `'@/components/editor_v2/nodes/*/index.vue'` không match — file không ở đúng vị trí
-2. Quên `export const meta = {...}` trong `index.vue` (chỉ export trong `meta.js` không đủ)
-3. `meta.type` chưa đăng ký hoặc trùng type khác
-4. `index.vue` import từ `meta.js` thất bại (vd vô tình import component vào meta.js gây TDZ)
-5. `meta.js` import `@/` alias → CI/test scripts `node` thuần không hiểu — phải dùng relative `../../components/...`
-
-**Fix:**
-```bash
-ls -R src/components/editor_v2/nodes/my_element/
-grep "export const meta" src/components/editor_v2/nodes/my_element/index.vue
-grep "from '@/" src/components/editor_v2/nodes/my_element/meta.js   # phải KHÔNG có (CI broke)
-```
-
-### Store warn "unknown key dropped"
-
-**Trigger:** Console hiện `[editor_v2] heading.style: unknown key 'fontSizeX' (not declared in traits) — dropped`.
-
-**Nguyên nhân:** Key không nằm trong `meta.traits` của element. `allowedKeys` guard reject.
-
-**Fix:**
-1. Verify `meta.traits` có chứa key qua `def.writes`
-2. Nếu dùng definition ref, check `DEFINITIONS_DATA[refKey]` writes có cover writeKey
-3. Nếu legacy inline-spec, ensure `attr.key` + `attr.target` match patch ghi vào
-
-### CI: "invalid JSON Schema"
-
-**Trigger:** `npm run validate:schemas` fail với error "Schema validation failed at element X, attribute Y"
-
-**Fix:**
-```bash
-npm run validate:schemas -- --debug
-grep "export const DEFINITIONS_DATA" src/components/editor_v2/components/trait/fields/defs/
-grep "key: 'width_select'" src/components/editor_v2/nodes/flex_block/meta.js
-```
-
-### Drop ngoài canvas vẫn tạo element
-
-**Nguyên nhân:** `endDrag` không guard `dropInsideCanvas`.
-
-**Verify:**
-```bash
-grep -A 5 "dropInsideCanvas" src/stores/editor_v2/dnd.js
-```
-
-### Toolbar không follow theo scroll/resize
-
-**Nguyên nhân:** `ElementToolbar` rAF loop bị cancel sớm hoặc không start.
-
-**Check:** Console `this._raf` value khi selected → phải là number.
-
-**Fix:** Đảm bảo `mounted` start `_updatePosition`, `beforeUnmount` cancel.
-
-### Stateful CSS không apply khi đổi variant
-
-**Trigger:** User chọn variant "Hover" trong toolbar + edit `bg_color`, nhưng `:hover` rule không xuất hiện.
-
-**Check:**
-1. `meta.states.variants` có chứa entry `{ value: 'hover', selector: ':hover' }`?
-2. Group chứa trait đang edit có gắn `stateful: true`? (Nếu chỉ group 'shape' có `stateful: true` mà edit `bg_color` thuộc group 'background' không có cờ, writeKey không vào `statefulKeys` → ghi flat)
-3. `useNodeStore().events.state === 'hover'`?
-4. Component template có `<component :is="'style'" v-if="stateCss">{{ stateCss }}</component>`?
-5. Element mixin có include `statefulNode`?
-
-**Fix:**
-```js
-// Verify statefulKeys
-import('@/composable/editor_v2/registry').then(r => {
-  const def = r.getDef('button')
-  console.log('statefulKeys:', def.statefulKeys)         // Set chứa 'background', '--text-color', …
-  console.log('states:', def.states)
-})
-
-// Verify routing
-useNodeStore().setState('hover')
-useNodeStore().changeStyle('btn-id', { backgroundColor: '#0d6efd' }, { stateful: true })
-// → nodes['btn-id'].data.states.hover.style.backgroundColor phải = '#0d6efd'
-//   (hoặc data.responsive[bp].states.hover.style nếu key thuộc STYLE_ASYNC)
-```
-
-### Satellite không xuất hiện sau khi drag Tab
-
-**Trigger:** Drop Tab vào canvas → tab-content satellite không render.
-
-**Nguyên nhân:**
-1. Owner template thiếu `<NodeRenderer v-if="satelliteId" :node-id="satelliteId" />`
-2. Mixin `satelliteOwner` không include
-3. `meta.satellite = { type, configKey }` thiếu hoặc sai
-4. `factoryFor(satellite.type)` return null (satellite type chưa register)
-
-**Fix:**
-```js
-// Verify owner has satellite meta
-import('@/composable/editor_v2/registry').then(r => {
-  console.log(r.getDef('tab').satellite)            // { type: 'tab-item', configKey: 'tabItemId' }
-  console.log(r.getDef('tab-item'))                  // phải có def
-})
-
-// Manually verify ensureSatellite
-const owner = useNodeStore().nodes['tab-id']
-console.log('satelliteId:', owner.data.config.tabItemId)
-console.log('satellite node:', useNodeStore().nodes[owner.data.config.tabItemId])
-```
-
-### Event action không fire
-
-**Trigger:** Click button có event `goToUrl` nhưng không navigate.
-
-**Check:**
-1. `node.data.events` có entry với `name: 'click'` + `action: 'goToUrl'`?
-2. Event editor không hỏng — verify qua `validateEvents(node.data.events, 'events', def.events, { strict: true })`
-3. `events/engine.js` runtime dispatcher có gắn vào click handler trong template?
+## 1. Bốn lệnh debug nên thuộc
 
 ```js
-// Trong button/index.vue, click handler gọi engine.runEvent(node, 'click', e)
-```
+// Node store được expose ra window (cuối stores/editor_v2/node.js)
+window.node.nodes                          // toàn bộ cây
+window.node.events                         // selected / hovered / dragged / indicator / state
+window.node.nodes['heading-abc'].data      // dữ liệu một node
 
-## 2. Static cycle check script
+// Trong console của editor
+$vm = document.querySelector('[data-node-id="heading-abc"]')   // tìm DOM của node
+```
 
 ```bash
-node -e "
-const fs = require('fs');
-const path = require('path');
-const { parse } = require('@vue/compiler-sfc');
-const graph = {};
-function importsOf(file) {
-  if (!fs.existsSync(file)) return [];
-  const src = fs.readFileSync(file, 'utf8');
-  let code = src;
-  if (file.endsWith('.vue')) {
-    const { descriptor } = parse(src, { filename: file });
-    code = (descriptor.script && descriptor.script.content) || '';
-  }
-  const out = [];
-  const re = /import[\s\S]*?from ['\"]([^'\"]+)['\"]/g;
-  let m;
-  while ((m = re.exec(code))) out.push(m[1]);
-  const re2 = /import ['\"]([^'\"]+)['\"]/g;
-  while ((m = re2.exec(code))) out.push(m[1]);
-  return out;
-}
-function resolve(spec, fromFile) {
-  if (spec.startsWith('@/')) spec = spec.replace('@/', 'src/');
-  if (spec.startsWith('./') || spec.startsWith('../')) spec = path.join(path.dirname(fromFile), spec);
-  if (!spec.startsWith('src/')) return null;
-  for (const ext of ['', '.js', '.vue', '/index.js', '/index.vue']) {
-    const p = spec + ext;
-    if (fs.existsSync(p) && fs.statSync(p).isFile()) return p;
-  }
-  return null;
-}
-function walk(file, seen = new Set()) {
-  if (seen.has(file)) return;
-  seen.add(file);
-  graph[file] = [];
-  for (const spec of importsOf(file)) {
-    const r = resolve(spec, file);
-    if (r) { graph[file].push(r); walk(r, seen); }
-  }
-}
-walk('src/stores/editor_v2/node.js');
-function findCycle(start, target, path = [], seen = new Set()) {
-  if (seen.has(start)) return null;
-  seen.add(start);
-  for (const dep of (graph[start] || [])) {
-    if (dep.includes(target)) return [...path, start, dep];
-    const r = findCycle(dep, target, [...path, start], seen);
-    if (r) return r;
-  }
-  return null;
-}
-console.log('store→nodeBase cycle:', findCycle('src/stores/editor_v2/node.js', 'mixins/nodeBase') || 'NONE');
-console.log('store→nodes/* cycle:',  findCycle('src/stores/editor_v2/node.js', 'nodes/') || 'NONE');
-console.log('registry.js deps:', graph['src/composable/editor_v2/registry.js'] || []);
-"
+# Kiểm tra schema trait sau khi sửa meta / defs
+npx --yes vite-node@0.34.6 scripts/validate-trait-schemas.mjs
 ```
 
-Expected output:
+Ngoài ra: mở tab Console lọc theo `[editor_v2]` — hầu hết guard trong hệ thống đều `console.warn` với tiền tố này.
+
+---
+
+## 2. Element không hiện
+
+| Kiểm tra | Cách xác nhận |
+|---|---|
+| `index.vue` có `export const meta` không? | Console lúc boot: `[editor_v2/registerElements] skipped (no meta export)` |
+| `meta.type` có rỗng không? | `[editor_v2/registry] registerElement: missing meta.type` |
+| Node có `type` khớp `meta.type` không? | Canvas hiện `[unknown: xxx]`; console `No component registered for type` |
+| Có nằm đúng `nodes/<folder>/index.vue` không? | Glob chỉ bắt đúng mẫu này |
+| `PageWrapper` có được mount không? | `registerElements` chỉ chạy khi PageWrapper mount |
+
+---
+
+## 3. Trait chỉnh mà không có gì xảy ra
+
+Đi theo thứ tự:
+
+1. **Console có `unknown key '…' (not declared in traits) — dropped`?**
+   → writeKey chưa được khai trong `meta.traits`. Thêm trait, hoặc khai `{ key: TRAIT.X, visible: false }` để hợp lệ hóa mà không vẽ UI.
+
+2. **Giá trị có vào `node.data` không?**
+   `window.node.nodes[id].data.style` — nếu có thì lỗi nằm ở phía render.
+
+3. **Element có bind `:style="commonStyleData"` không?**
+   Nhiều element trộn thêm: `{ ...this.commonStyleData, ...this.animationStylePatch }`. Thiếu `commonStyleData` là mất sạch trait.
+
+4. **Thẻ gốc có attribute đánh dấu không?**
+   `canvas-node-wrapper` cho `--node-width/height/margin`, `canvas-flex` cho `--layout-*`. Renderer kiểm tra `node.dom.hasAttribute(...)` và trả `{}` nếu không có.
+
+5. **`ref="root"` có gắn đúng thẻ gốc không?**
+   Không có thì `node.dom` là `null` → hai renderer trên tự bỏ qua, overlay cũng mù.
+
+6. **Trait có nằm trong nhóm `stateful` và đang ở state khác base không?**
+   Khi đó giá trị được ghi vào `data.states[state]`, không phải `data.style`.
+
+---
+
+## 4. Vấn đề responsive
+
+| Triệu chứng | Nguyên nhân | Xử lý |
+|---|---|---|
+| Chỉnh ở mobile mà desktop cũng đổi | Key không nằm trong `STYLE_ASYNC` / `CONFIG_ASYNC` ⇒ ghi vào base | Thêm key vào Set tương ứng trong `responsivePolicy.js` |
+| Chỉnh ở desktop mà mobile không đổi | Slot mobile đã có giá trị riêng, thắng theo ưu tiên 1 | Đúng hành vi; reset slot mobile nếu muốn |
+| Đổi breakpoint mà style không đổi | Element đọc `node.data.style.x` trực tiếp | Dùng `mergedStyle` hoặc `getStyle(node, key)` |
+| Ẩn ở desktop kéo theo ẩn ở mobile | Key `hidden` bị ghi vào base | `hidden` nằm trong `NON_CASCADING` — kiểm tra đường ghi |
+| Giá trị lạ "từ đâu ra" | Fallback lên từ breakpoint hẹp hơn (ưu tiên 4) | Đây là thiết kế, xem [07 §4.2](./07-traits-and-data.md) |
+
+---
+
+## 5. Vấn đề kéo thả
+
+| Triệu chứng | Kiểm tra |
+|---|---|
+| Không có vạch định vị | Container có mixin `nodeContainer` và bind `dropListeners` chưa? |
+| Kéo con nhưng chọn nhầm cha | Thiếu `e.stopPropagation()` trong `dragstart` |
+| Luôn thả ra ngoài container | Container quá nhỏ ⇒ toàn vùng viền. Xem `isNearBorders` (`min(16px, span*0.2)`) |
+| Thả xong không có gì | `window.node.events.indicator.error` có giá trị? Xem `nodeChildAllows` / `isRootOnly` |
+| Node lơ lửng ngoài section | Auto-wrap chỉ chạy khi `parentId === ROOT` |
+| Kéo item picker nhưng id trùng | Prop `tree` truyền object cố định thay vì hàm |
+| Vị trí thả lệch khi canvas thu nhỏ | Bẫy đã biết: `getDOMInfo` trộn rect đã scale với margin chưa scale |
+
+---
+
+## 6. Vấn đề overlay / toolbar
+
+| Triệu chứng | Kiểm tra |
+|---|---|
+| Khung chọn lệch | `ref="root"` sai thẻ; hoặc node render nhiều bản mà thiếu `nodeIndex` |
+| Khung bám sai bản sao | `onClick` không gán `selectionAnchorEl`, hoặc gán **trước** `setSelected` (bị xóa) |
+| Toolbar không hiện | Node là ROOT, hoặc `config.hidden` đang bật |
+| Duplicate/Delete tác động nhầm node | Xem `meta.rules.toolbarTarget` |
+| Dải padding không hiện | `meta.rules.edgeOverlay` là `false` hoặc `{ padding: false }` |
+| Popover chui xuống dưới sidebar | z-index portal của ui-kit (~1001) < `--wk-z-sidebar-wrapper` (1100) — nâng thủ công |
+
+---
+
+## 7. Vấn đề dataset / binding
+
+| Triệu chứng | Kiểm tra |
+|---|---|
+| Luôn hiện "Select a product" | `bindings[0].target.id` còn `''`; hoặc `notShowContent` tính sai vì cha không thuộc `parentTypes` |
+| Đã chọn nhưng canvas trống | `productsSaved[id]` chưa có ⇒ thiếu `setProductSaved` / `ensureProducts` |
+| Mọi thẻ trong danh sách giống nhau | `provide('datasetItem')` / prop `:dataset-item` bị đứt |
+| Danh sách trống | Chưa hydrate collection — xem bảng ở [11 §9.1](./11-dataset-binding.md) |
+| Đổi ảnh ở thẻ này kéo theo thẻ kia | Khóa `productImageState` thiếu product id |
+| Nhóm trait sai với `kind` | Chuỗi truyền vào `isVisibleByKind` phải là `"${type}::${kind}"` |
+| Giá sai định dạng | `siteStore.site.currency` chưa nạp (`getSite` chạy không `await`) |
+
+---
+
+## 8. Vấn đề undo / redo
+
+| Triệu chứng | Kiểm tra |
+|---|---|
+| Thao tác không undo được | Action mutate `this.nodes` trực tiếp, hoặc dùng `silent: true` |
+| Một cú kéo tạo hàng trăm entry | Thiếu `throttleMs`, hoặc `key` thay đổi mỗi lần |
+| Hai thao tác bị gộp làm một | Trùng `key` trong cửa sổ 300ms |
+| Undo xong canvas trắng | `hydrate` không gọi `history.clear()` |
+| Redo mất sau khi sửa | Đúng hành vi — sửa mới cắt nhánh redo |
+
+---
+
+## 9. Vấn đề lưu / đổi trang
+
+| Triệu chứng | Kiểm tra |
+|---|---|
+| Trang vừa load đã dirty | Watcher `nodes` thiếu `flush: 'sync'` |
+| Nút Save luôn xám | `page.dirty` false hoặc `page.pageId` null |
+| Đổi trang mất thay đổi | `switchPage({ saveDirty: false })` mà không tự `savePage()` |
+| Publish thiếu thay đổi mới | Publish chụp bản đã lưu — kiểm tra `savePage()` thành công chưa |
+| Duplicate làm hỏng trang gốc | Thiếu `remapPageNodeIds` ⇒ hai trang chung id node |
+| Canvas trắng khi đổi trang | `sources[pageId]` cache chuỗi hỏng → `parsePageSource` trả `null` |
+
+---
+
+## 10. Vấn đề inline text
+
+| Triệu chứng | Kiểm tra |
+|---|---|
+| Double-click không vào chế độ sửa | Thiếu `rules.isContentEditable` hoặc chưa bind `editableListeners` |
+| Bấm nút toolbar là editor tắt | Thiếu `@mousedown.prevent` trên container toolbar |
+| Kéo picker màu làm editor mất | `applyColor` đang gọi `focus()` |
+| Nội dung bị bọc thêm `<p>` | Dùng `Document` mặc định thay vì `InlineDocument` |
+| Đổi màu ở panel mà chữ bôi đỏ vẫn đỏ | `STRIP_INLINE_KEYS` thiếu key, hoặc node không `isContentEditable` |
+
+---
+
+## 11. Vòng lặp import (TDZ)
+
+Triệu chứng: `Cannot access 'X' before initialization` ngay khi vào editor, hoặc store `undefined` trong mixin.
+
+Nguyên nhân luôn là **tầng dưới import tầng trên**:
+
 ```
-store→nodeBase cycle: NONE
-store→nodes/* cycle: NONE
-registry.js deps: [<small set of pure data deps>]
+❌ registry.js       import nodes/*.vue
+❌ constants.js      import store
+❌ meta.js           import .vue hoặc import store
+❌ createNode.js     import registry ở top-level dùng ngay lúc load
 ```
 
-## 3. SFC compile check
+Quy tắc:
 
-```bash
-node -e "
-const { parse, compileScript, compileTemplate } = require('@vue/compiler-sfc');
-const fs = require('fs');
-const files = process.argv.slice(1);
-let bad = 0;
-for (const f of files) {
-  const { descriptor, errors: pErr } = parse(fs.readFileSync(f, 'utf8'), { filename: f });
-  if (pErr.length) { bad++; console.log('PARSE-FAIL', f, pErr); continue; }
-  try {
-    if (descriptor.script) compileScript(descriptor, { id: f });
-    if (descriptor.template) {
-      const t = compileTemplate({ source: descriptor.template.content, filename: f, id: f });
-      if (t.errors.length) { bad++; console.log('TEMPLATE-FAIL', f, t.errors); continue; }
-    }
-    console.log('OK', f);
-  } catch (e) { bad++; console.log('COMPILE-FAIL', f, e.message); }
-}
-process.exit(bad ? 1 : 0);
-" -- src/components/editor_v2/nodes/*/index.vue
-```
+- `registerElements.js` là **file duy nhất** được import SFC element, và **chỉ `PageWrapper.vue`** được import nó.
+- `constants.js`, `createNode.js`, `mergeNode.js`, `responsivePolicy.js` phải giữ dependency-free.
+- `meta.js` chỉ được import `enum.js`, `visible.js` và các module dữ liệu thuần khác.
 
-## 4. DevTools tricks
+---
 
-### Inspect store live
+## 12. Checklist trước khi báo xong
 
-```js
-// Trong Vue DevTools Pinia tab — store IDs:
-//   editor_v2_node, editor_v2_dnd, ui, editor_v2_history,
-//   editor_v2_page, editor_v2_page_list, editor_v2_global_styling
+**Thêm/sửa element**
+- [ ] `meta.js` không import Vue
+- [ ] `index.vue` export cả `default` lẫn `meta`
+- [ ] Thẻ gốc có `ref="root"`, `nodeAttrs`, `nodeListenersBase`, `nodeClassMap`, `commonStyleData`
+- [ ] Có `canvas-node-wrapper` / `canvas-flex` nếu dùng các biến tương ứng
+- [ ] Container: có `dropListeners` + `NodePlaceholder` khi rỗng + render con qua `NodeRenderer`
+- [ ] Chạy `validate-trait-schemas.mjs`
+- [ ] Thử đủ 4 breakpoint, undo/redo, duplicate, delete
 
-// Hoặc tự expose qua window từ PageWrapper:
-window.__editor_node_store    = useNodeStore()
-window.__editor_dnd_store     = useDndStore()
-window.__editor_history_store = useHistoryStore()
-```
+**Thêm/sửa trait**
+- [ ] Def nằm đúng file nhóm trong `defs/`
+- [ ] `writes[key].target` đúng namespace
+- [ ] Đăng ký widget trong `trait/fields/registry.js`
+- [ ] Cân nhắc thêm key vào `STYLE_ASYNC` / `CONFIG_ASYNC`
+- [ ] Cần CSS thì thêm renderer vào `styleRenderers.js` **cùng key**
+- [ ] Khai trait trong `meta.traits` của element cần dùng
 
-### Tìm node theo type
-
-```js
-Object.values(__editor_node_store.nodes).filter(n => n.data.type === 'flex-block')
-```
-
-### Inspect satellite chain
-
-```js
-const tabs = Object.values(__editor_node_store.nodes).filter(n => n.data.type === 'tab')
-tabs.forEach(t => {
-  const satId = t.data.config?.tabItemId
-  console.log(t.id, '→ satellite:', satId, __editor_node_store.nodes[satId])
-})
-```
-
-### Inspect history
-
-```js
-__editor_history_store.timeline                 // entries
-__editor_history_store.pointer                  // current
-__editor_history_store.canUndo
-__editor_history_store.nextUndoLabel
-__editor_history_store.undo()
-```
-
-### Inspect Positioner
-
-```js
-// Khi đang drag:
-__editor_dnd_store.positioner.currentIndicator
-__editor_dnd_store.positioner.currentTargetChildDimensions
-```
-
-## 5. Checklist khi thêm element
-
-- [ ] Folder `nodes/<snake_case>/` đúng tên
-- [ ] `meta.js` Vue-free + relative imports (no `@/`)
-- [ ] `index.vue` re-export `export const meta = { ...baseMeta, factory, icon? }`
-- [ ] Template root: `ref="root"` + `v-bind="nodeAttrs"` + `v-on="{...nodeListenersBase, ...dragListeners}"`
-- [ ] Container: thêm `dragover: onDragOver, dragenter: onDragEnter` + `<NodeRenderer v-for>`
-- [ ] Stateful: thêm `<component :is="'style'" v-if="stateCss">` + mixin `statefulNode`
-- [ ] Satellite owner: thêm `<NodeRenderer v-if="satelliteId" :node-id="satelliteId" />` + mixin `satelliteOwner`
-- [ ] `meta.type` kebab-case, unique
-- [ ] `meta.factory` call `createNode(...)` không trực tiếp object literal
-- [ ] `meta.traits` chỉ ref `DEFINITIONS_DATA` (hoặc inline-spec đúng shape)
-- [ ] Style scoped chỉ structural CSS
-- [ ] Test: drag từ sidebar → outline → trait edit → undo
-
-## 6. Checklist khi sửa store action
-
-- [ ] Mutate qua `_commit(label, mutateFn, opts)` chứ KHÔNG direct `this.nodes[id].x = y`
-- [ ] Mảng dùng `rec.insert/remove` (= splice), không index assignment
-- [ ] DOM refs `markRaw` (`setDOM` đã làm)
-- [ ] Cycle / self-parent guard với `move`, `addNodeTree`
-- [ ] Sau khi action xong, indicator/dragged event được clear nếu liên quan
-- [ ] Update giá trị qua `changeStyle/changeConfig/changeSpecials`, không direct mutate
-- [ ] Reset events khi appropriate (xoá node selected → remove khỏi selection)
-- [ ] Satellite cascade: `remove` của owner cũng xoá satellite (qua `getDescendants` + sweep)
-- [ ] Stateful write check `opts.stateful` + `_routeState`
-
-## 7. Checklist khi sửa Positioner
-
-- [ ] `cleanup()` được gọi mỗi `endDrag`
-- [ ] Window event listener (`scroll`, `dragover`) cleanup đúng
-- [ ] `isDiff()` so sánh đủ 3 trường: parent.id, index, where
-- [ ] `getCanvasAncestor` không infinite loop (parent chain hữu hạn)
-- [ ] `isNearBorders` axis-aware (đọc `inFlow` từ getDOMInfo)
-- [ ] Root-only type force ROOT target (không nest vào container khác)
-- [ ] `isDroppable` được hỏi và surface error vào indicator
-- [ ] Locked type (rule.locked) → từ chối drag riêng
-
-## 8. Checklist khi thêm trait field type
-
-- [ ] Định nghĩa vào `components/trait/fields/defs/<group>.js` với `writes: { [writeKey]: { target, schema } }`
-- [ ] Build widget Vue trong `components/trait/components/fields/XxxTrait.vue`
-- [ ] Register vào `components/trait/fields/registry.js#VUE_COMPONENTS`
-- [ ] Nếu CSS phức hợp → thêm renderer vào `styleRenderers.js`
-- [ ] (Optional) Schema enum thêm description cho từng value (AI gen friendly)
-- [ ] Test trong element meta `attributes: ['my_new_def']`
-
-## 9. Checklist khi thêm event action
-
-- [ ] Tạo file `components/trait/fields/events/actions/<name>.js` với handler runtime
-- [ ] Thêm action vào `eventDefinitions.js` `EVENTS_AI` (LLM enum)
-- [ ] Cập nhật `validateEvents` nếu có constraint mới
-- [ ] Tạo Vue editor `components/trait/components/fields/events/<Name>Event.vue` cho payload
-- [ ] Register vào `events/index.js` map
-
-## 10. Khi nào cần restart dev server
-
-Vite HMR xử lý:
-- ✅ Sửa template SFC
-- ✅ Sửa `<script>` body
-- ✅ Sửa CSS
-- ✅ Thêm/xoá element trong `nodes/` (glob re-evaluate khi page reload)
-
-Cần full reload (Cmd-R):
-- ⚠️ Sửa import path
-- ⚠️ Đổi export name (`meta` → `definition`)
-- ⚠️ Sửa mixin (Vue Options merge issue khi HMR)
-- ⚠️ Thêm action vào `eventDefinitions.js` (registry cache)
-
-Cần restart dev server:
-- ❌ Sửa `vite.config.js`, `tsconfig.json`
-- ❌ Sửa file trong `node_modules`
-- ❌ Sửa `server.js` (express)
-
-## 11. Trace 1 lỗi end-to-end (case study)
-
-**Báo:** "Click element không chọn được"
-
-Trace:
-1. Console có warn / error? → Nếu TDZ → xem mục 1
-2. Mở Pinia DevTools (store `editor_v2_node`) → `events.selected` có thay đổi khi click?
-   - Có → lỗi ở rendering: outline CSS không apply
-     - Check `.wk-node-selected` rule trong `assets/editor_v2/node.css`
-     - Check `:class` binding template (đúng key `nodeClassMap`?)
-   - Không → lỗi ở handler
-3. Click handler có fire? Console.log trong `onClick` mixin
-   - Không fire → `@click.stop` bị parent intercept hoặc `pointer-events: none`
-   - Fire → `setSelected` nhưng store không update?
-4. Store actions có ESM live binding đúng? `useNodeStore()` return store đúng instance?
-
-Process tương tự cho mọi loại lỗi: từ user-facing symptom → check Pinia DevTools state → trace ngược về handler/action.
-
-## 12. Khi nào nên hỏi / ask đồng nghiệp
-
-- Cycle import phức tạp >3 file
-- Positioner indicator sai vị trí với layout đặc biệt (grid 2D, sticky, transform parent)
-- Reactivity không trigger sau khi mutate store
-- Performance: re-render quá nhiều với cây > 200 nodes
-- AI gen schema không match LLM output sau Phase 1
-
-Trước khi hỏi: chạy cycle check script (mục 2), capture exact reproduce steps, screenshot DevTools state.
+**Sửa store / action**
+- [ ] Mutate qua `_commit`, không đụng `this.nodes` trực tiếp
+- [ ] Có `key` + `throttleMs` nếu là hot path
+- [ ] Cập nhật **cả** `data.nodes[]` lẫn `data.parent`
+- [ ] Xử lý satellite (node có `parent` nhưng ngoài `data.nodes`)

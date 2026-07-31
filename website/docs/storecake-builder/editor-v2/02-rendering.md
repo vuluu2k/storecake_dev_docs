@@ -3,313 +3,259 @@ sidebar_position: 3
 title: 02 — Rendering Pipeline
 ---
 
-# 02 — Rendering Pipeline
+# 02 — Rendering: từ URL đến pixel
 
-Cách Editor V2 render cây node ra DOM, reactive update khi store đổi, và mối liên hệ giữa Pinia/Vue/registry.
+Chương này đi **từng bước** từ lúc trình duyệt vào `/manage/:site_id/editor` cho tới lúc một chữ "Xin chào" hiện trên canvas.
 
-## 1. Render từ đỉnh xuống
+---
+
+## 1. Giai đoạn BOOT — `EditorV2.vue` mounted
+
+File: `src/views/EditorV2.vue`
 
 ```
-[PageWrapper.vue]
-  → import 'registerElements'   (side-effect: populate registry)
-  → render template
-      <NodeRenderer node-id="ROOT" />
-            ↓
-      [NodeRenderer.vue]
-        computed.node = nodes['ROOT']
-        computed.resolved = getDef('root').component = RootCanvas
-        render <RootCanvas :node="..." :node-id="ROOT" />
-            ↓
-      [nodes/root_canvas/index.vue]
-        v-for childId in node.data.nodes
-          <NodeRenderer :node-id="childId" />
-                ↓
-          (recurse) [NodeRenderer] → getDef('flex-section') → FlexSection
-            ↓
-          [nodes/flex_section/index.vue]
-            v-for childId in node.data.nodes
-              <NodeRenderer :node-id="childId" />
-                    ↓
-              (recurse) → FlexBlock → ... → Heading / Text / Button (leaf)
+mounted()
+ ├─ ① Dựng guard mobile
+ │     matchMedia('(max-width: 639.98px)') → isMobileViewport
+ │     (<640px: canvas view-only, phủ một lớp chặn pointer)
+ │
+ ├─ ② siteStore.getSite(siteId) → .getPublishNewest()      (không await)
+ │
+ ├─ ③ await productDatasetStore.getProductsList(siteId)
+ │     nạp trang đầu danh sách sản phẩm cho picker "Store"
+ │
+ ├─ ④ await pageList.loadPages(siteId)
+ │     lấy metadata mọi page + tự tạo các page mặc định còn thiếu
+ │
+ ├─ ⑤ Chọn page để mở:
+ │       pageList.byId($route.query.page_id) ?? pageList.homePage
+ │       → await page.loadPage(target.id)
+ │       → nếu query khác id thật thì sửa lại URL (replace)
+ │     Không có page nào? → thử localStorage 'temp_page_source_v2'
+ │
+ ├─ ⑥ Bật dirty-tracking
+ │     watch(() => nodeStore.nodes, () => page.markDirty(),
+ │           { deep: true, flush: 'sync' })
+ │
+ ├─ ⑦ beforeunload guard khi page.dirty
+ └─ ⑧ Phím tắt: Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z hoặc Ctrl+Y, Ctrl/Cmd+S
 ```
 
-`NodeRenderer` là **switcher đệ quy duy nhất**. Mọi container element (`Root`, `FlexSection`, `FlexBlock`, `Tab`, `List`, …) đều phải render children qua `<NodeRenderer>`. Element không được import nhau trực tiếp — luôn qua NodeRenderer để registry hoạt động.
+Hai chi tiết dễ vấp:
 
-## 2. NodeRenderer code
+- **`flush: 'sync'` ở bước ⑥ là bắt buộc.** `loadPage` bật `loading = true` → `hydrate()` → tắt `loading`. `markDirty()` chỉ ghi khi `!loading`. Với flush mặc định (async), watcher chạy *sau* khi `loading` đã tắt → trang vừa load xong đã bị đánh dấu dirty. Sync flush khiến watcher chạy ngay trong lúc mutate, khi `loading` còn true.
+- Watcher chỉ theo dõi `nodeStore.nodes`, **không** theo dõi cả store. Nhờ vậy click chọn / hover / kéo (nằm ở `nodeStore.events`) không làm trang thành dirty.
 
-```vue
-<template>
-  <component :is="resolved" v-if="node && resolved" :node="node" :node-id="nodeId" />
-  <div v-else-if="node">[unknown: {{ node.data.type }}]</div>
-</template>
+---
 
-<script>
-import { mapState } from 'pinia'
-import { useNodeStore } from '@/stores/editor_v2/node'
-import { ROOT_NODE } from '@/composable/editor_v2/constants'
-import { getDef } from '@/composable/editor_v2/registry'
+## 2. Giai đoạn LOAD — `page.loadPage(pageId)`
 
-export default {
-  name: 'NodeRendererV2',
-  props: { nodeId: { type: String, default: ROOT_NODE } },
-  computed: {
-    ...mapState(useNodeStore, ['nodes']),
-    node() { return this.nodes[this.nodeId] || null },
-    resolved() {
-      if (!this.node) return null
-      const def = getDef(this.node.data.type)
-      if (!def) console.warn('[editor_v2] No component registered for type:', this.node.data.type)
-      return def ? def.component : null
-    },
-  },
-}
-</script>
+File: `src/stores/editor_v2/page.js`
+
+```
+loadPage(pageId)
+ └─ pageApi.fetch(siteId, pageId)
+      └─ setSource(pageId, res.data.source)
+           ├─ nodeStore.hydrate(JSON.parse(source))
+           ├─ preloadNodeFonts(nodeStore.nodes)
+           └─ Promise.all([
+                productDataset.ensureProducts(productBindingIds(nodes)),
+                categoryDataset.ensureCategories(categoryBindingIds(nodes)),
+              ])
 ```
 
-Hai computed phụ thuộc reactive vào `nodes[nodeId]`. Khi store đổi (add/move/remove), Pinia notify → Vue rerun `node()` → nếu type đổi thì `resolved()` cũng rerun → `<component :is>` swap.
+- `hydrate(payload)` **thay toàn bộ** `nodes` và **xóa timeline history** (timeline cũ trỏ vào node của trang cũ). Payload thiếu / hỏng / không có `ROOT` ⇒ tạo ROOT rỗng.
+- `preloadNodeFonts` quét mọi `--text-font-family` trong `style` base, mọi slot responsive, mọi state override, cộng thêm preset của global styling, rồi gọi `Font.loadFont()` cho từng họ chữ. Không có bước này thì text nhấp nháy đổi font sau khi render.
+- `ensureProducts` / `ensureCategories` gom id trong `bindings[0].target` của mọi node rồi fetch một lượt — nếu bỏ, các element dataset sẽ render rỗng cho tới khi từng element tự fetch.
 
-Fallback `[unknown: xxx]` xuất hiện khi:
-- Folder thiếu `index.vue` hoặc `meta.js`
-- `meta.type` không match `node.data.type` (sai chính tả)
-- `registerElements` chưa chạy (chỉ xảy ra nếu render trước PageWrapper mount)
+Chi tiết save / publish / switch: [chương 12](./12-page-lifecycle.md).
 
-## 3. Mỗi element render như thế nào
+---
 
-Lấy `nodes/flex_block/index.vue` làm ví dụ:
+## 3. Giai đoạn RENDER — `PageWrapper.vue`
 
-```vue
-<template>
-  <div
-    ref="root"                                    ← LƯU DOM REF
-    v-bind="nodeAttrs"                            ← data-node-id, data-node-type, draggable
-    :class="{
-      'wk-flex-block': true,
-      'wk-flex-block--drop-active': isDropTarget, ← REACTIVE class theo indicator
-      ...nodeClassMap,                            ← { wk-node-selected: isSelected, hidden }
-    }"
-    :data-element-placeholder="isEmpty ? 'true' : null"
-    :style="blockStyle"                           ← { ...commonStyleData, ...layoutVars }
-    v-on="{
-      ...nodeListenersBase,                       ← { click: onClick }
-      ...dragListeners,                           ← { dragstart, dragend } từ draggableNode
-      dragover: onDragOver,                       ← từ nodeContainer
-      dragenter: onDragEnter,
-    }"
-  >
-    <template v-if="!isEmpty">
-      <NodeRenderer v-for="childId in node.data.nodes" :key="childId" :node-id="childId" />
-    </template>
-    <NodePlaceholder v-else />
-  </div>
-</template>
-```
+### 3.1 Cấu trúc DOM
 
-- `ref="root"` — `nodeBase` lifecycle gọi `setDOM(nodeId, this.$refs.root)`. DOM ref được markRaw vào `node.dom`. Positioner gọi `getDOMInfo(node.dom)` khi drag.
-- `v-bind="nodeAttrs"` → `data-node-id`, `data-node-type`, `draggable="true"` — Positioner & EdgeOverlays query selector theo `data-node-id`.
-- `commonStyleData` precomputed từ `def.renderers` (xem [`07-traits-and-data.md`](./07-traits-and-data.md) section 5).
-
-### Leaf element opt-in `editableText`
-
-Vd `nodes/heading/index.vue`:
-
-```vue
-<template>
-  <h2
-    ref="root"
-    v-bind="{ ...nodeAttrs, ...editableAttrs }"   ← editable thêm contenteditable+spellcheck+tabindex
-    :class="nodeClassMap"
-    :style="commonStyleData"
-    v-on="{ ...nodeListenersBase, ...dragListeners, ...editableListeners }"
-    v-text="mergedSpecials.text || 'Heading'"
-  />
-</template>
-```
-
-`editableAttrs` / `editableListeners` rỗng khi `meta.rules.isContentEditable !== true` → element inert, không có edge case.
-
-### Stateful element
-
-Vd `nodes/button/index.vue` có `meta.states.variants = [default, hover, active]`. Template:
-
-```vue
-<template>
-  <button ref="root" v-bind="nodeAttrs" :class="nodeClassMap" :style="buttonStyle">
-    <component :is="'style'" v-if="stateCss">{{ stateCss }}</component>
-    {{ mergedSpecials.label || 'Button' }}
-  </button>
-</template>
-```
-
-`stateCss` từ `statefulNode` mixin compose ra rule:
-
-```css
-[data-node-id="button-abc123"]:hover { background:#0d6efd !important; color:#fff !important; }
-[data-node-id="button-abc123"]:active { transform:scale(0.98) !important; }
-```
-
-`!important` để beat inline base style. `<style v-if>` chỉ render khi có variant override → no-op cho element không stateful.
-
-### Container có satellite
-
-Vd `nodes/tab/index.vue`:
-
-```vue
-<template>
-  <div ref="root" v-bind="nodeAttrs" :class="nodeClassMap" :style="commonStyleData">
-    <!-- tab items hiển thị qua data.nodes (vẫn editable trong Layers) -->
-    <div class="wk-tab__list">
-      <NodeRenderer v-for="id in node.data.nodes" :key="id" :node-id="id" />
+```html
+<div class="wk-editor-canvas">           <!-- container cuộn -->
+  <div class="wk-editor-scale-wrapper">  <!-- giữ chỗ theo kích thước ĐÃ scale -->
+    <div class="wk-editor-body">         <!-- mặt giấy trắng, width = width breakpoint -->
+      <div id="editor-dnd-wrapper">
+        <NodeRenderer node-id="ROOT" />
+      </div>
+      <PageEmpty v-if="isPageEmpty" />
     </div>
-    <!-- tab-content là satellite, KHÔNG nằm trong data.nodes — render qua satelliteId -->
-    <NodeRenderer v-if="satelliteId" :node-id="satelliteId" />
   </div>
-</template>
+
+  <Teleport to="body">
+    <NodeHoverOverlay /> <NodeSelectedOverlay />
+    <IndicatorOverlay /> <EdgeOverlays /> <ElementToolbar />
+  </Teleport>
+</div>
 ```
 
-`satelliteOwner` mixin tự `ensureSatellite()` ở `mounted` → tạo `tab-content` child + ghi id vào `config.satelliteId`. Satellite KHÔNG xuất hiện trong Layers panel (vì `data.nodes` của Tab không chứa nó), nhưng có DOM thật + selection riêng.
+### 3.2 Zoom-to-fit tự động
 
-## 4. Reactive flow khi click select 1 node
-
-```
-1. User click vào FlexBlock
-   ↓
-2. @click.stop="onClick" — handler trong nodeBase mixin
-   ↓
-3. useNodeStore().setSelected(this.nodeId)
-   ↓
-4. store mutates: events.selected = [nodeId], events.state = meta.states.base || null
-   ↓
-5. Pinia notify watchers
-   ↓
-6. FlexBlock.isSelected re-compute (vì depends on events.selected)
-   ↓
-7. Template re-eval: :class={'wk-node-selected': true}
-   ↓
-8. CSS apply: outline 2px solid #3F8DFF
-```
-
-`@click.stop` (gắn sẵn trong `nodeListenersBase`) cần thiết để click child không bubble lên parent. `RootCanvas` dùng `@click.self` → click vào vùng trống deselect, click vào child không deselect.
-
-## 5. Reactive flow khi update qua trait
-
-```
-1. User nhập '32' vào Gap field (GapTrait.vue)
-   ↓
-2. emit('change', 'gap', 32) — TraitField dispatcher
-   ↓
-3. TraitField.onChange('gap', 32) → resolve def.writes['gap'].target = 'style'
-   ↓
-4. nodeStore.changeStyle(id, { gap: 32 })
-   ↓
-5. _writeByPolicy(id, 'style', { gap: 32 }, defaultStyleSlot, currentBp)
-   defaultStyleSlot('gap') = 'current'   (gap thuộc STYLE_ASYNC)
-   ↓
-6. _writeNs(id, 'style', { gap: 32 }, currentBp, ...)
-   ↓
-7. _commit('changeStyle', mutateFn, { key: 'style:id', throttleMs: 300 })
-   ↓
-8. mutateFn → writeNamespaceWithRec → allowedKeys check (pass) → rec.set([...path, 'gap'], 32)
-   ↓
-9. Pinia notify
-   ↓
-10. FlexBlock.mergedStyle re-compute → { gap: 32, ... } (cascade desktop-first)
-    ↓
-11. FlexBlock.blockStyle re-compute → { ...commonStyleData (gap renderer ghi gap: '32px'), ... }
-    ↓
-12. CSS apply: gap thay đổi, browser re-layout
-```
-
-## 6. Reactive flow khi đổi breakpoint
-
-```
-1. User click WkTabs 'Tablet' trên Header
-   ↓
-2. uiStore.setStateField('breakpointActive', 'tablet')
-   ↓
-3. Pinia notify
-   ↓
-4. PageWrapper.canvasStyle re-compute → { width: `${getBreakpointWidth('tablet')}px` } = '768px'
-   ↓
-5. .wk-editor-body width transition (CSS transition 200ms ease)
-   ↓
-6. MỌI element re-compute mergedStyle/mergedConfig (cascade theo bp mới)
-   ↓
-7. Section: sectionStyle re-compute → padding mobile (15px) thay desktop (24px)
-   ↓
-8. Block: blockStyle re-compute với responsive.tablet/mobile override (cascade)
-   ↓
-9. EdgeOverlays cập nhật rect (rAF loop tự đọc rect, không watch)
-```
-
-## 7. setDOM lifecycle
-
-Mỗi element root có `ref="root"`. `nodeBase` cài 3 hook:
+Canvas **luôn giữ đúng chiều rộng thật của breakpoint** (desktop 1920, laptop 1440, tablet 768, mobile 360) rồi thu nhỏ bằng `transform: scale()`.
 
 ```js
-mounted()       { useNodeStore().setDOM(this.nodeId, this.$refs.root) }
-updated()       { useNodeStore().setDOM(this.nodeId, this.$refs.root) }
-beforeUnmount() { useNodeStore().setDOM(this.nodeId, null) }
+raw   = (canvas.clientWidth - 16) / breakpointWidth
+ratio = Math.min(1, Math.max(0.4, raw))   // chỉ thu nhỏ, sàn 40%
+uiStore.canvasScale = ratio
 ```
 
-`setDOM`:
+- `.wk-editor-body` là `position: absolute`, `transform-origin: 0 0` → hộp chưa scale của nó không đẩy layout.
+- `.wk-editor-scale-wrapper` giữ chỗ **kích thước sau khi scale** để vùng cuộn khớp với những gì mắt nhìn thấy.
+- Hai `ResizeObserver` (một trên container, một trên body) gộp callback vào **một `requestAnimationFrame`** để tránh cảnh báo *ResizeObserver loop*.
+- Đổi breakpoint không làm container đổi kích thước ⇒ observer không bắn ⇒ có watcher `breakpointActive` gọi lại thủ công.
+
+> ⚠️ **Bẫy đã biết**: `getDOMInfo` trộn rect đã scale với margin chưa scale. Với node có margin lớn, vị trí thả có thể lệch một chút khi `canvasScale < 1`.
+
+### 3.3 CSS global styling
+
+`PageWrapper` watch `globalStylingStore.styleData.all` (immediate) và ghi vào một thẻ `<style id="wk-global-styles">` trong `<head>`; gỡ bỏ ở `beforeUnmount`. Đây là nơi các class `.wk-gs-heading-1`… ra đời.
+
+---
+
+## 4. `NodeRenderer` — switcher đệ quy duy nhất
+
+```vue
+<component
+  :is="resolved" v-if="node && resolved"
+  :node="node" :node-id="nodeId" :is-clone="isClone" :node-index="nodeIndex" />
+<div v-else-if="node">[unknown: {{ node.data.type }}]</div>
+```
+
 ```js
-setDOM(id, el) {
-  const node = this.nodes[id]
-  if (!node) return
-  node.dom = el ? markRaw(el) : null
+node()     { return this.nodes[this.nodeId] || null }
+resolved() { return getDef(this.node.data.type)?.component ?? null }  // + console.warn nếu thiếu
+```
+
+Đệ quy:
+
+```
+NodeRenderer(ROOT)
+  → getDef('root').component = RootCanvas
+      v-for childId in node.data.nodes → <NodeRenderer :node-id="childId" />
+          → FlexSection
+              v-for → <NodeRenderer>
+                  → FlexBlock → … → Heading / Text / Button (lá)
+```
+
+**Luật**: mọi container render con qua `<NodeRenderer>`, không import element khác trực tiếp — nếu không, registry mất tác dụng và element mới sẽ không hiện.
+
+Ngoại lệ có chủ đích: `list-dataset` import thẳng `dataset-block/index.vue` để render **cùng một node** thành N thẻ sản phẩm ([chương 11](./11-dataset-binding.md)).
+
+---
+
+## 5. Bên trong một element — style ra đời như thế nào
+
+Ví dụ `nodes/text-dataset/index.vue`:
+
+```vue
+<component :is="htmlTag" ref="root"
+  :class="[nodeClassMap, globalStyleClass]"
+  :style="datasetStyle"
+  canvas-node-wrapper
+  v-bind="{ ...nodeAttrs, ...editableAttrs }"
+  v-on="{ ...nodeListenersBase, ...dragListeners }">
+  <component :is="'style'" v-if="stateCss">{{ stateCss }}</component>
+  …
+</component>
+```
+
+Bốn nguồn ghép lại thành hình thức cuối cùng:
+
+```
+① :style  ← commonStyleData
+     def.renderers.reduce((out, fn) => Object.assign(out, fn(node)))
+     + parse specials.customCss
+     ( renderers = [flexCanvas, canvasNodeWrapper, …theo thứ tự trait khai báo] )
+
+② :class  ← nodeClassMap
+     { 'wk-node-selected': isSelected,
+       'wk-hidden': mergedConfig.hidden,
+       …các class trong specials.className,
+       'wk-drop-active': isDropTarget   ← chỉ với nodeContainer }
+   + globalStyleClass ('wk-gs-heading-4' …)
+
+③ <style> nội tuyến ← stateCss   (mixin statefulNode)
+     [data-node-id="x"]:hover { … !important }
+
+④ CSS toàn cục ← assets/editor_v2/node.css + #wk-global-styles
+```
+
+### 5.1 `nodeAttrs`
+
+```js
+{
+  'data-node-id':    nodeId,      // Positioner, overlay, stateCss selector đều dựa vào cái này
+  'data-node-type':  type,
+  'data-node-index': nodeIndex,   // bản render thứ mấy
+  draggable:         locked ? 'false' : 'true',
 }
 ```
 
-`markRaw` ngăn Vue track DOM element làm reactive. Sau đó Positioner và EdgeOverlays đọc `node.dom` để `getBoundingClientRect()`.
+### 5.2 Hai attribute đánh dấu cho renderer
 
-`setDOM` KHÔNG qua `_commit` — runtime state, không cần history.
+`flexCanvas` và `canvasNodeWrapper` chỉ trả về CSS khi element **thật sự có** attribute tương ứng trên DOM:
 
-## 8. Vue reactivity caveat với mảng
+```js
+if (node.data.type == 'flex-section' || !node.dom?.hasAttribute('canvas-flex')) return {}
+```
 
-`node.data.nodes` là mảng. Khi `addNode` mutate qua `rec.insert(['nodes', parentId, 'data', 'nodes'], idx, childId)`, `applyPatches` gọi `arr.splice(idx, 0, childId)` — Pinia (Vue 3 Proxy) track splice nên template re-render OK.
+Nghĩa là muốn nhận biến `--node-width` / `--node-height` / `--node-margin-*`, element phải viết `canvas-node-wrapper` trên thẻ gốc; muốn nhận `--layout-direction` / `--layout-vertical` / `--layout-horizontal`, phải viết `canvas-flex`.
 
-KHÔNG dùng index assignment (`parent.data.nodes[0] = id`) hoặc replace cả mảng — `PatchRecorder.insert/remove` chỉ làm splice.
+> Đây là nguyên nhân số một của lỗi "chỉnh width trong panel mà element không đổi": thiếu attribute trên thẻ gốc, hoặc `ref="root"` chưa được gắn nên `node.dom` còn `null`.
 
-## 9. Performance considerations
+### 5.3 `stateCss`
 
-### Tránh re-walk `def.renderers` mỗi render
+`statefulNode` chỉ sinh CSS cho các key **thực sự bị override** ở state đó:
 
-`renderers` đã precompute trong `registerElement`. `nodeBase.commonStyleData` chỉ là `Object.assign({}, ...renderers.map(r => r(node)))` — O(N renderers) per node per re-render, không có lookup runtime.
+```js
+override = mergeStateMap(node, 'hover', bpActive)   // { '--text-color': '#f00' }
+defKeys  = override.keys → map ngược về def key    // { 'text_color' }
+body     = declsToCss(renderStateDecls(node, 'hover', defKeys), /* !important */ true)
+css      = `[data-node-id="x"]:hover{${body}}`
+```
 
-### Map lookup là O(1)
+`!important` là bắt buộc vì style base được gắn inline (`:style`), mà inline luôn thắng rule ngoài.
 
-`NodeRenderer.resolved` compute mỗi lần `nodes[id]` đổi. Với 100 elements, 100 lần lookup `getDef(type)` là O(100), không sao.
+---
 
-### Auto-scroll khi drag
+## 6. Reactivity — vì sao mọi thứ tự cập nhật
 
-`PageWrapper.mounted` cài listener `dragover` cấp document để scroll canvas khi cursor gần edge. Listener không trigger Vue re-render — chỉ mutate `canvas.scrollTop`.
+- `nodeBase` dùng `mapState(useNodeStore, ['events'])` và `mapState(useUIStore, ['breakpointActive', …])`.
+- `mergedStyle` / `mergedConfig` phụ thuộc `node.data.*` **và** `breakpointActive` → đổi breakpoint là mọi node tính lại.
+- `commonStyleData` gọi các renderer, các renderer lại gọi `getStyle/getConfig` → cũng đọc `breakpointActive` từ store → cũng reactive.
+- Store mutate qua `$patch` trong `_commit` ⇒ một lần thông báo cho toàn bộ subscriber, không phải N lần.
 
-### Indicator overlay update
+Ba lỗi reactivity hay gặp:
 
-`onDragOver` mỗi container gọi `positioner.computeIndicator(...)` mỗi frame native fire dragover (~30-60Hz). Positioner cache `currentTargetChildDimensions` để khỏi đo lại DOM mỗi lần. `setIndicator` chỉ notify store nếu `isDiff(newPosition)` (position thực sự đổi).
+| Triệu chứng | Nguyên nhân |
+|---|---|
+| Sửa trait mà canvas không đổi | Ghi thẳng vào `node.data.x` thay vì gọi action; hoặc key bị `allowedKeys` chặn |
+| Đổi breakpoint mà style không đổi | Element đọc `node.data.style.x` trực tiếp thay vì `mergedStyle.x` / `getStyle()` |
+| Overlay bám sai vị trí | `ref="root"` đặt sai thẻ, hoặc quên `nodeIndex` khi render nhiều bản |
 
-### Stateful CSS
+---
 
-`stateCss` compute mỗi khi `node.data.states[state]` đổi. Output là string CSS string — Vue render `<style>{{ stateCss }}</style>` rất rẻ, browser tự re-parse.
+## 7. Ba trạng thái đặc biệt của canvas
 
-## 10. Khi nào element TỰ render không qua NodeRenderer?
+| Trạng thái | Hiển thị | Điều kiện |
+|---|---|---|
+| Trang trống | `PageEmpty.vue` giữa canvas | `nodes.ROOT.data.nodes.length === 0` |
+| Container rỗng | `NodePlaceholder.vue` | `nodeContainer.isEmpty` |
+| Dataset chưa chọn nguồn | `SelectDataset.vue` ("Select a product") | `dataset.notShowContent` — chưa có `id` và cha không phải nhóm dataset |
 
-**Không bao giờ.** Mọi children phải qua `<NodeRenderer :node-id="childId" />`. Cả satellite cũng render qua NodeRenderer — chỉ khác là id satellite lấy từ `config.satelliteId` thay vì `data.nodes`.
+---
 
-Lý do:
-- Cho phép registry swap component (vd flag dev sang variant beta)
-- Reactivity của `nodes[childId]` được kích hoạt qua NodeRenderer's `node()` computed
-- Không cần biết type cụ thể của child — generic
+## 8. Bỏ chọn
 
-Trường hợp duy nhất render trực tiếp: leaf node không có children (Heading, Text, Image, Icon, Button) — không có `<template v-for>`.
+`PageWrapper` gắn listener click lên `.wk-editor-body`:
 
-## 11. RootCanvas tại sao đặc biệt?
+```js
+this._onEditdorBodyClick = (e) => { e.stopPropagation(); this.nodeStore.setSelected(null) }
+```
 
-- Không có drag (root không kéo đi đâu được) — `meta.rules.locked: true`
-- Không có selection bubble — `@click.self` deselect khi click vùng trống
-- Render `<PageEmpty />` khi `nodes.length === 0`
-- Ẩn khỏi Layers (`meta.rules.hideInLayer: true`)
-- Không có overlay padding (`meta.rules.edgeOverlay: { padding: false }`)
-- meta vẫn export với `type: 'root'` + `category: 'system'` để registry nhận diện
-
-Nếu sau này muốn root có thêm hành vi (vd canvas grid, ruler), sửa file này trực tiếp — không ảnh hưởng element khác.
+Node con `stopPropagation` trong `nodeBase.onClick`, nên click trúng node thì chọn node; click vào khoảng trống của mặt giấy thì bỏ chọn.

@@ -26,16 +26,20 @@
 
 ***
 
-* [Editor V2 — Tổng quan](storecake-builder/editor-v2/README.md)
+* [Editor V2 — Bắt đầu từ đây](storecake-builder/editor-v2/README.md)
 * [Editor V2 — 01 Kiến trúc](storecake-builder/editor-v2/01-architecture.md)
 * [Editor V2 — 02 Rendering](storecake-builder/editor-v2/02-rendering.md)
 * [Editor V2 — 03 Drag & Drop](storecake-builder/editor-v2/03-drag-drop.md)
-* [Editor V2 — 04 Overlays](storecake-builder/editor-v2/04-overlays.md)
-* [Editor V2 — 05 Mở rộng](storecake-builder/editor-v2/05-extending.md)
+* [Editor V2 — 04 Overlays & Chrome](storecake-builder/editor-v2/04-overlays.md)
+* [Editor V2 — 05 Thêm element mới](storecake-builder/editor-v2/05-extending.md)
 * [Editor V2 — 06 Troubleshooting](storecake-builder/editor-v2/06-troubleshooting.md)
-* [Editor V2 — 07 Traits & Schema](storecake-builder/editor-v2/07-traits-and-data.md)
+* [Editor V2 — 07 Traits & Responsive](storecake-builder/editor-v2/07-traits-and-data.md)
 * [Editor V2 — 08 Glossary](storecake-builder/editor-v2/08-glossary.md)
 * [Editor V2 — 09 AI Page Generation](storecake-builder/editor-v2/09-ai-page-generation.md)
+* [Editor V2 — 10 Undo / Redo](storecake-builder/editor-v2/10-history.md)
+* [Editor V2 — 11 Dataset & Binding](storecake-builder/editor-v2/11-dataset-binding.md)
+* [Editor V2 — 12 Vòng đời Page](storecake-builder/editor-v2/12-page-lifecycle.md)
+* [Editor V2 — 13 Inline text (Tiptap)](storecake-builder/editor-v2/13-inline-text.md)
 
 ## Storefront API
 

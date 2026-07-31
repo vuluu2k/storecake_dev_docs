@@ -1,432 +1,283 @@
-# 03 — Drag & Drop
+# 03 — Drag & Drop từng bước
 
-Pipeline drag-create (sidebar → canvas) và drag-move (existing node). Positioner deep dive. Indicator overlay. Sidebar pickers.
+Kéo thả là phần nhiều "phép thuật" nhất của editor. Chương này bám theo đúng thứ tự sự kiện.
 
-## 1. Tổng quan 2 loại drag
+---
 
-| Loại | Bắt đầu ở | Source | Apply | Class trong body |
-|---|---|---|---|---|
-| **Create** | Sidebar (`ElementDragV2`) | `dragTarget = { type: 'new', tree }` | `addNodeTree(tree, parentId, index)` | `wk-dragging` |
-| **Move** | Element canvas hoặc Toolbar drag handle | `dragTarget = { type: 'existing', nodes: [id] }` | `move(nodeId, parentId, index)` | `wk-dragging` |
+## 1. Hai loại kéo, một đường ống
 
-Cả hai dùng chung Positioner và `endDrag` để commit.
+| | Kéo tạo mới (`'new'`) | Kéo di chuyển (`'existing'`) |
+|---|---|---|
+| Bắt đầu từ | Item trong picker trái (bọc bởi `ElementDragV2`) | Node trên canvas, hoặc tay cầm ⠿ của `ElementToolbar` |
+| `dragTarget` | `{ type:'new', tree }` | `{ type:'existing', nodes:[id] }` |
+| Kết thúc bằng | `nodeStore.addNodeTree(...)` | `nodeStore.move(...)` |
 
-## 2. Sidebar pickers (drag source)
+Ở giữa, **cả hai dùng chung** `Positioner` → `indicator` → `dnd.endDrag()`. Vì vậy chỉ cần hiểu một đường ống.
 
-Sidebar có 10 picker component, một cho mỗi nhóm element:
+---
+
+## 2. Đường đi của người dùng đến nút kéo
+
+Sidebar trái có **ba cấp**:
 
 ```
-components/editor_v2/components/sidebar/
-  SidebarWrapper.vue                 ← Shell switcher (đọc uiStore.leftSidebarKeyActive)
-  SidebarElements.vue                ← Container: layout / basic catalogs
-  SidebarSub.vue                     ← Sub-tab
-  SidebarLayer.vue                   ← Layers tree (đọc registry)
-  LayerItem.vue / LayerGroupWrapper.vue
-  ElementContainer.vue               ← Wrap mỗi item (icon + label)
-
-  ElementsLayoutPicker.vue           ← Section + N-column rows + page templates
-  ElementsHeadingPicker.vue
-  ElementsTextPicker.vue
-  ElementsButtonPicker.vue
-  ElementsImagePicker.vue
-  ElementsIconPicker.vue
-  ElementsBreadcrumbPicker.vue
-  ElementsListPicker.vue
-  ElementsTabPicker.vue
-  ElementsImageComparisonPicker.vue
+Toolbar.vue (tool rail 60px)         Sidebar.vue (300px)        PickerWrapper.vue (240px)
+ Section · Elements · Store ·   →     Elements.vue / Store.vue  →  ElementsLayoutPicker
+ Style · Add-on · Layer ·             / Layer.vue / Pages.vue      ProductTitlePicker
+ Pages · Settings · Shortcuts                                      …
+        ↓ ui.toolbarKeyActive              ↓ ui.leftSidebarKeyActive
 ```
 
-Mỗi picker wrap item bằng `<ElementDragV2 :tree="...">` với prop `tree` là **function** trả NodeTree (lazy — tạo tree mới mỗi lần drag).
+- `Toolbar.vue` set `ui.toolbarKeyActive` và reset `leftSidebarKeyActive`.
+- `Sidebar.vue` chọn component nội dung theo `toolbarKeyActive` (`elements` / `store` / `layer` / `pages`).
+- `PickerWrapper.vue` mở panel cấp 3 theo `leftSidebarKeyActive` — 14 picker element + 16 picker store.
 
-`ElementsLayoutPicker` đặc biệt: ngoài Section + Row N, còn list `listTemplates()` từ `templateRegistry.js` — vd "Hero" template build NodeTree từ `templates/hero.js#def` qua `buildTemplate(id)`.
-
-Thêm element mới vào sidebar:
-1. Trong `meta.js` set `category: 'basic' | 'layout'` + `showInSidebar: true`
-2. Tạo picker `Elements<Name>Picker.vue` hoặc thêm vào picker hiện có (vd cùng category)
-3. Picker mount qua `SidebarElements.vue` theo group
-
-## 3. Drag-create flow (chi tiết)
-
-### Bước 1 — Sidebar item
+Mỗi item kéo được bọc bởi `ElementDragV2`:
 
 ```vue
-<!-- ElementsLayoutPicker.vue -->
-<ElementDragV2 :tree="() => buildElement('flex-section')">
-  <ElementContainer label="Section" :icon="SquareStack" />
+<ElementDragV2 :tree="buildProductTitle" :width="216" :height="100">
+  <span>Product Title</span>
 </ElementDragV2>
 ```
 
-`buildElement(type, overrides?)` (trong `nodeFactory.js`) → call `factoryFor(type, overrides)` (wrapped factory) → trả `{ rootNodeId, nodes }` NodeTree.
+Prop `tree` nhận **object `NodeTree` hoặc hàm trả về `NodeTree`**. Dùng hàm là chuẩn — cây phải được tạo *tại thời điểm kéo* để mỗi lần kéo sinh id mới.
 
-### Bước 2 — `ElementDragV2.vue` xử lý dragstart
+---
+
+## 3. `dragstart` — mở phiên kéo
+
+### 3.1 Từ picker (tạo mới)
+
+`ElementDragV2` gắn listener DOM thật (không dùng `@dragstart` của Vue) trong `mounted`:
 
 ```js
-this._onDragStart = (e) => {
+el.setAttribute('draggable', 'true')
+
+_onDragStart(e) {
   e.stopPropagation()
   const tree = typeof this.tree === 'function' ? this.tree() : this.tree
-  if (!tree || !tree.rootNodeId || !tree.nodes) return
-  const dom = e.currentTarget
-  const shadow = createShadow(e, [dom])        // clone preview, set dragImage
+  if (!tree?.rootNodeId || !tree?.nodes) return              // kèm console.warn
+  const shadow = createDomShadow(e, e.currentTarget)         // ảnh ma bám con trỏ
   useDndStore().startCreate(tree, shadow)
-}
-```
-
-`createShadow`:
-- Clone DOM source, strip selection/drop-active class
-- Scale ≤ 320×240px
-- Set opacity, shadow, position absolute off-screen
-- `e.dataTransfer.setDragImage(shadow, w/2, h/2)`
-
-### Bước 3 — `dndStore.startCreate(tree, shadowEl)`
-
-```js
-startCreate(tree, shadowEl) {
-  this.dragTarget = { type: 'new', tree }
-  this.setDraggedShadow(shadowEl)               // markRaw
-  const nodeStore = useNodeStore()
-  this.setPositioner(new Positioner(nodeStore, this.dragTarget))
-}
-```
-
-Positioner constructor:
-```js
-this.draggedNodes = this.getDraggedNodes()      // [{ node: treeRoot, exists: false }]
-window.addEventListener('scroll', this.onScrollListener, true)
-window.addEventListener('dragover', documentDragoverEventHandler, false)  // preventDefault
-```
-
-Window dragover preventDefault để browser cho phép drop ở mọi đâu. Side-effect: drop ngoài canvas vẫn fire `endDrag` — guard `dropInsideCanvas`.
-
-### Bước 4 — User di chuyển chuột → `dragover` ở canvas containers
-
-Mỗi container (`RootCanvas`, `FlexSection`, `FlexBlock`, `Tab`, `List`, …) có handler `onDragOver` từ `nodeContainer` mixin:
-
-```js
-onDragOver(e) {
-  const dndStore = useDndStore()
-  if (!dndStore.positioner) return
-  e.preventDefault()
-  e.stopPropagation()
-  const indicator = dndStore.positioner.computeIndicator(this.nodeId, e.clientX, e.clientY)
-  if (indicator) useNodeStore().setIndicator(indicator)
-}
-```
-
-`e.stopPropagation` quan trọng: container con fire trước → set indicator cho con; nếu bubble lên cha thì cha overwrite, indicator bị "nhảy" lên parent.
-
-`positioner.computeIndicator(nodeId, x, y)` trả về:
-```js
-{
-  placement: {
-    parent: { id, data, ... },        // node sẽ là parent sau khi drop
-    index: 2,                          // vị trí trong parent.data.nodes
-    where: 'before' | 'after',         // bên nào của index
-    currentNode,                       // node tại index hiện tại (nếu có)
-  },
-  error: null | 'flex-section can only live at the page root',
-}
-```
-
-### Bước 5 — IndicatorOverlay render vạch xanh
-
-`IndicatorOverlay.vue` (Teleport to body) watch `events.indicator`. Khi có, đọc placement, query DOM của `placement.currentNode.dom` hoặc cuối parent's children, vẽ overlay (`position: fixed`, vạch xanh 2px, x/y theo rect).
-
-Container target có class `wk-flex-section--drop-active` hoặc `wk-flex-block--drop-active` (qua `isDropTarget` computed trong mixin). Tint xanh nhẹ + placeholder lift up.
-
-### Bước 6 — User nhả chuột → `dragend`
-
-`onMoveDragEnd` (drag existing) hoặc `_onDragEnd` (drag sidebar) cùng gọi `dndStore.endDrag(e)`.
-
-```js
-endDrag(e) {
-  // 1. Guard: cursor có trong canvas không?
-  let dropInsideCanvas = true
-  if (e?.clientX != null && e?.clientY != null) {
-    const canvas = document.querySelector('.wk-editor-body')
-    if (canvas) {
-      const r = canvas.getBoundingClientRect()
-      dropInsideCanvas = e.clientX >= r.left && e.clientX <= r.right
-                      && e.clientY >= r.top  && e.clientY <= r.bottom
-    }
-  }
-
-  // 2. Apply nếu có indicator hợp lệ và cursor trong canvas
-  if (this.positioner && dropInsideCanvas) {
-    const indicator = this.positioner.getIndicator()
-    if (this.dragTarget && indicator && !indicator.error) {
-      const idx = indicator.placement.index + (indicator.placement.where === 'after' ? 1 : 0)
-
-      if (this.dragTarget.type === 'new') {
-        nodeStore.addNodeTree(this.dragTarget.tree, indicator.placement.parent.id, idx)
-      } else if (this.dragTarget.type === 'existing') {
-        nodeStore.move(this.dragTarget.nodes[0], indicator.placement.parent.id, idx)
-      }
-    }
-  }
-
-  // 3. Cleanup
-  this.draggedElementShadow?.el?.parentNode?.removeChild(this.draggedElementShadow.el)
-  this.setDraggedShadow(null)
-  this.positioner?.cleanup()                    // remove window listeners
-  this.setPositioner(null)
-  this.dragTarget = null
-  nodeStore.setIndicator(null)
-  nodeStore.setNodeEvent('dragged', null)
-}
-```
-
-### Bước 7 — Store apply
-
-`addNodeTree(tree, 'ROOT', 0)`:
-1. `parentIsRoot && !treeRootIsRootOnly` → `treeToInsert = wrapInBlankSection(tree)` (auto-wrap)
-2. `_commit('addNodeTree', mutateFn)` — qua PatchRecorder
-3. Lặp `treeToInsert.nodes`, build node mới (clone style/config/specials/events/bindings + seed responsive[currentBp]), `rec.set(['nodes', id], newNode)`
-4. `rec.insert(['nodes', parentId, 'data', 'nodes'], insertAt, treeRootId)`
-
-Vue reactivity notify → mọi NodeRenderer re-eval → new element xuất hiện trong DOM. History được record 1 entry "addNodeTree" → undo xoá hết tree.
-
-## 4. Drag-move flow
-
-Khác create:
-- Bắt đầu từ element trong canvas (drag handle trên ElementToolbar hoặc drag thẳng vào element)
-- Source là node đã tồn tại, không phải tree mới
-- Apply qua `move(id, newParentId, idx)` thay vì `addNodeTree`
-
-### `onMoveDragStart` (trong `draggableNode` mixin)
-
-```js
-onMoveDragStart(e) {
-  e.stopPropagation()
-  const nodeStore = useNodeStore()
-  const dndStore = useDndStore()
-  // Locked element không drag riêng
-  if (getDef(this.node.data.type)?.rules?.locked) { e.preventDefault(); return }
-  nodeStore.setSelected(this.nodeId)
-  const shadow = createShadow(e, [this.$refs.root])
-  dndStore.startMove(this.nodeId, shadow)
-  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
   document.body.classList.add('wk-dragging')
 }
 ```
 
-**`e.stopPropagation()` quan trọng:** Browser pick `draggable=true` ancestor gần nhất làm drag source, NHƯNG event vẫn bubble. Nếu Heading (child) và Block (parent) cùng `draggable=true`, drag Heading sẽ bubble lên Block's `@dragstart` → `setSelected(blockId)` override → store nghĩ đang drag Block.
+> `.element-drag-v2` **không được** dùng `display: contents` — HTML5 drag cần một hộp DOM thật.
 
-### `move(nodeId, newParentId, newIndex)` trong store
+### 3.2 Từ canvas (di chuyển)
 
-Logic phức tạp hơn `addNodeTree`:
-
-1. **Validation:** `nodeId !== newParentId`, không có cycle (descendants không include newParentId), không root-only nesting (`isRootOnlyType(node.data.type) && newParent.data.type !== 'root'`), và parent whitelist (`getNodeChildAllows(newParent.data.type)` — nếu non-empty và không include `node.data.type` → reject)
-2. **No-op fast path:** cùng parent + cùng spot → return
-3. **Auto-wrap:** newParent=ROOT + node không phải root-only → `wrapInBlankSection({ rootNodeId: nodeId, nodes: {} })` → wrap thành flex-section
-4. **Normal re-parent:** remove khỏi old parent, adjust index nếu same parent (oldIdx < newIndex → newIndex--), insert vào new parent, ghi `node.data.parent = newParentId`
-
-Mọi mutation qua `_commit('move', mutateFn)` → 1 entry history.
-
-### `reorderChildren(parentId, orderedIds)`
-
-Khi user drag-reorder trong cùng container hoặc Layers panel: thay vì `move` từng item (N entries), gọi `reorderChildren` → 1 entry permutation. Validate permutation (length match + same set) trước khi commit.
-
-## 5. Positioner deep dive
-
-`src/composable/editor_v2/Positioner.js` — port craft.js.
-
-### Constructor
+Mixin `draggableNode` (`composable/editor_v2/draggableNode.js`):
 
 ```js
-constructor(store, dragTarget) {
-  this.store = store
-  this.dragTarget = dragTarget
-  this.draggedNodes = this.getDraggedNodes()
-  window.addEventListener('scroll', this.onScrollListener, true)
-  window.addEventListener('dragover', preventDefault, false)
+onMoveDragStart(e) {
+  if (this.isEditing || getDef(type)?.rules?.locked) { e.preventDefault(); e.stopPropagation(); return }
+  e.stopPropagation()            // ← CỰC KỲ QUAN TRỌNG
+  nodeStore.setSelected(this.nodeId)
+  dndStore.startMove(this.nodeId, createShadow(e, label))
+  e.dataTransfer.effectAllowed = 'move'
+  document.body.classList.add('wk-dragging')
 }
 ```
 
-### `computeIndicator(dropTargetId, x, y)` — luồng
+`e.stopPropagation()` ở đây không phải cho đẹp: trình duyệt chọn **draggable trong cùng** làm nguồn kéo, nhưng event **vẫn bubble lên**. Không chặn thì kéo một `flex-block` sẽ khiến `flex-section` ông nội cũng chạy `onMoveDragStart` và ghi đè id trong store — kết quả là kéo nhầm cả section.
 
-```
-Input: dropTargetId, (x, y) cursor
-1. isDraggingRootOnly()?
-     ├─ true  → newParentNode = ROOT (force)
-     └─ false → newParentNode = getCanvasAncestor(dropTargetId)
-                (đi ngược lên tới node có isCanvas=true)
-
-2. isNearBorders(newParentNode.dom, x, y)?
-     ├─ true (cursor sát mép) → ESCAPE: newParentNode = parent của newParentNode
-     └─ false → keep newParentNode
-
-3. childDims = getChildDimensions(newParentNode)
-     [{ id, top, bottom, left, right, inFlow }] cho mỗi child
-
-4. position = findPosition(newParentNode, childDims, x, y)
-     { parent, index, where }
-
-5. isDroppable(newParentNode, draggedNodes)?
-     ├─ true  → error = null
-     └─ false → error = string
-
-6. currentIndicator = { placement: { ...position, currentNode }, error }
-   return currentIndicator (hoặc undefined nếu KHÔNG đổi vs lần trước)
-```
-
-### `isNearBorders` — axis-aware
-
-Khi cursor sát mép parent, user muốn drop làm **sibling của parent**, không phải drop vào trong.
-
-- `inFlow === true` (parent stack children theo column) → top/bottom là escape, left/right không
-- `inFlow === false` (parent stack theo row) → left/right là escape
-
-`BORDER_OFFSET = 16` px (xem `constants.js`). Cursor cách mép > 16 px → coi như muốn drop INTO.
-
-### `findPosition` — quyết định index + where
-
-Walk childDims, tính `distanceToCenter(child, x, y)`, lấy closest. Sau đó:
-- Vertical layout: cursor trên/dưới center → 'before' / 'after'
-- Horizontal layout: cursor trái/phải center → 'before' / 'after'
-
-Edge cases:
-- Parent rỗng → `{ index: 0, where: 'before' }`
-- Cursor ngoài tất cả children → closest child, where='after'
-
-### Indicator caching
+### 3.3 `dnd.startCreate` / `startMove` làm gì
 
 ```js
-isDiff(newPosition) {
-  return !currentIndicator
-    || currentIndicator.placement.parent.id !== newPosition.parent.id
-    || currentIndicator.placement.index !== newPosition.index
-    || currentIndicator.placement.where !== newPosition.where
+startCreate(tree, shadowEl) {
+  this.dragTarget = { type: 'new', tree }
+  this.setDraggedShadow(shadowEl)
+  this.setPositioner(new Positioner(useNodeStore(), this.dragTarget))
+}
+
+startMove(nodeId, shadowEl) {
+  this.dragTarget = { type: 'existing', nodes: [nodeId] }
+  this.setDraggedShadow(shadowEl)
+  nodeStore.setNodeEvent('dragged', [nodeId])
+  this.setPositioner(new Positioner(useNodeStore(), this.dragTarget))
 }
 ```
 
-Nếu position không đổi, `computeIndicator` return `undefined` → store không notify → overlay không re-render.
-
-### Cleanup
+Constructor của `Positioner` đăng ký hai listener toàn cục:
 
 ```js
-cleanup() {
-  window.removeEventListener('scroll', this.onScrollListener, true)
-  window.removeEventListener('dragover', preventDefault, false)
+window.addEventListener('scroll', this.onScrollListener, true)   // cuộn ⇒ xóa cache kích thước con
+window.addEventListener('dragover', e => e.preventDefault(), false) // cho phép thả ở mọi nơi
+```
+
+---
+
+## 4. `dragover` — tính chỗ thả (chạy liên tục)
+
+Container nào dùng `nodeContainer` đều có `dropListeners`:
+
+```js
+onDragOver(e) {
+  if (!dndStore.positioner) return
+  e.preventDefault(); e.stopPropagation()
+  const indicator = dndStore.positioner.computeIndicator(
+    this.nodeId, e.clientX, e.clientY, e.currentTarget)
+  if (indicator) useNodeStore().setIndicator(indicator)
 }
 ```
 
-Gọi từ `endDrag`. Nếu không cleanup, listener window `preventDefault` còn → mọi drag-drop sau bị browser allow drop bừa.
+### 4.1 Thuật toán `computeIndicator` — 6 bước
 
-## 6. IndicatorOverlay component
+```
+computeIndicator(dropTargetId, x, y, dropTargetDom)
 
-`src/components/editor_v2/elements/IndicatorOverlay.vue` render **2 chế độ**:
+BƯỚC 1 — Nguồn kéo có phải root-only không?
+  isDraggingRootOnly() (vd flex-section)
+    → LUÔN chọn ROOT làm cha, bỏ qua vị trí con trỏ.
+      Section là phần tử cấp trang, không bao giờ lồng vào node khác.
+  Ngược lại → getCanvasAncestor(dropTargetId):
+      leo lên cho tới node đầu tiên có data.isCanvas === true.
+      (node lá không chứa được con → cha thật sự là container gần nhất)
 
-1. **OK drop** (`indicator.error == null`) → vạch xanh 2px ở vị trí placement.
-2. **Reject drop** (`indicator.error` có message) → ô đỏ (`border + bg rgba(255,77,79,.08)`) bọc parent rect + label đỏ ghi lý do reject (vd "Allowed drop: TEXT", "flex-section can only live at the page root").
+BƯỚC 2 — Kiểm tra "vùng viền" (escape zone)
+  isNearBorders(getDOMInfo(parentDom), x, y)
+    inFlow  (cha xếp con theo chiều dọc)  → chỉ mép TRÊN/DƯỚI là vùng thoát
+    !inFlow (cha là flex-row / grid)      → chỉ mép TRÁI/PHẢI là vùng thoát
+    offset = min(BORDER_OFFSET=16, span * 0.2)
+  Trúng vùng viền ⇒ nhảy lên cha của cha ("thả làm anh em", không "thả vào trong").
+
+  Vì sao chặn ở 20%? Nếu cứ dùng cứng 16px, một FlexBlock cao <80px sẽ toàn
+  là vùng thoát và mọi cú thả đều bật lên section cha.
+
+BƯỚC 3 — Đo kích thước các con
+  getChildDimensions(parent, parentDom) → [{ id, ...getDOMInfo(dom) }]
+  Có cache theo (currentTargetId, currentTargetDom); cuộn trang thì xóa cache.
+
+BƯỚC 4 — findPosition(parent, dims, x, y) → { index, where: 'before' | 'after' }
+  Con inFlow  : so sánh y với TÂM DỌC của con
+  Con !inFlow : so sánh x với TÂM NGANG, kèm xLimit/yLimit/leftLimit
+                để đi đúng theo hàng (wrap) chứ không nhảy lung tung.
+
+BƯỚC 5 — isDiff(position)?
+  Trùng chỗ cũ ⇒ return sớm, không gây re-render vô ích.
+
+BƯỚC 6 — Kiểm tra hợp lệ: query.node(parent).isDroppable(draggedNodes, onError)
+  ① Nguồn là root-only mà cha không phải ROOT
+       → "X can only live at the page root"
+  ② Cha có rules.nodeChildAllows và type nguồn không nằm trong đó
+       → "Allowed drop: LIST-ITEM"
+
+⇒ currentIndicator = { placement: { parent, index, where, currentNode }, error }
+```
+
+### 4.2 `indicator` được vẽ ra sao
+
+`nodeStore.events.indicator` được `IndicatorOverlay.vue` đọc và vẽ một vạch định vị. Đồng thời mọi `nodeContainer` có `isDropTarget === true` (khi `indicator.placement.parent.id === nodeId`) sẽ nhận class `wk-drop-active` → nền xanh nhạt.
+
+Nếu drop target là container **rỗng**, vạch định vị bị nén lại: viền placeholder đã đủ để chỉ chỗ, chồng thêm vạch nữa nhìn như đường kẻ đôi.
+
+### 4.3 Tự cuộn canvas
+
+`PageWrapper` gắn `dragover` ở cấp `document`:
 
 ```js
-computed: {
-  indicator() { return useNodeStore().events.indicator },
-  // Red box + label khi cố drop vào parent không hợp lệ
-  errorBox() {
-    const ind = this.indicator
-    if (!ind || !ind.error) return null
-    const parentNode = ind.placement?.parent && this.nodes[ind.placement.parent.id]
-    if (!parentNode?.dom) return null
-    const info = getDOMInfo(parentNode.dom)
-    return {
-      message: ind.error,
-      style: { position: 'fixed', top: info.top + 'px', left: info.left + 'px',
-        width: info.width + 'px', height: info.height + 'px',
-        border: '1px solid #FF4D4F', background: 'rgba(255,77,79,.08)',
-        zIndex: 'var(--wk-z-drop-indicator)', cursor: 'not-allowed' },
-    }
-  },
-  show() {
-    const ind = this.indicator
-    if (!ind || ind.error) return false
-    if (ind.placement.parent.data.nodes.length === 0) return false  // empty container có placeholder rồi
-    return true
-  },
-  style() {
-    /* vạch xanh placement — position fixed, height 2px, bg #3F8DFF */
-    /* dùng movePlaceholder(placement, canvasDOMInfo, targetDOMInfo) để tính top/left/width */
-  },
-}
+ZONE = 60px, SPEED = 14px
+con trỏ cách mép trên  < 60 → canvas.scrollTop -= SPEED * cường độ
+con trỏ cách mép dưới  < 60 → canvas.scrollTop += SPEED * cường độ
 ```
 
-Template:
-```vue
-<div v-if="show" class="wk-indicator" :style="style" />
-<div v-else-if="errorBox" class="wk-indicator-error" :style="errorBox.style">
-  <span class="wk-indicator-error__label">{{ errorBox.message }}</span>
-</div>
+Nhờ vậy thả được vào vùng nằm ngoài màn hình mà không phải cuộn tay trước.
+
+---
+
+## 5. `dragend` — chốt kết quả
+
+`dnd.endDrag(e)`:
+
+```
+① Ghi nhớ dropNodeIndex = positioner.currentTargetDom['data-node-index'] || 0
+
+② Có thả trong canvas không?
+     so tọa độ con trỏ với rect của .wk-editor-body
+     (Positioner cho preventDefault trên toàn window, nên vẫn có thể nhả
+      chuột ngoài canvas mà indicator cũ vẫn còn — chốt chặn nằm ở đây)
+
+③ Có indicator và indicator.error rỗng:
+     'new'      → index = placement.index + (where === 'after' ? 1 : 0)
+                  nodeStore.addNodeTree(tree, placement.parent.id, index)
+     'existing' → nodeStore.move(movedId, parentId, index)
+
+④ Dọn dẹp: gỡ shadow (gọi el._cleanup nếu có), positioner.cleanup(),
+   dragTarget = null, setIndicator(null), setNodeEvent('dragged', null)
+
+⑤ Sau nextTick: selectionAnchorEl = node.doms[dropNodeIndex]
+   → toolbar/overlay bám đúng bản render vừa thả
+
+⑥ setSelected(droppedNodeId) + uiStore.setToolbarActive('layer')
+   (thả xong là sidebar nhảy sang Layers)
 ```
 
-Error message string đến từ `node.js` store action `setIndicator` callback hoặc trực tiếp từ `Positioner.isDroppable`:
-- `flex-section can only live at the page root` — root-only nest sai chỗ
-- `Allowed drop: TEXT, IMAGE` — parent có `rules.nodeChildAllows` whitelist src.data.type không nằm trong
+---
 
-Teleport vào body để không bị clip bởi overflow canvas.
+## 6. Auto-wrap: thả thẳng vào ROOT
 
-## 7. Auto-scroll khi drag
-
-`PageWrapper.mounted` cài listener `dragover` cấp document:
+ROOT chỉ chứa **element root-only** (thực tế: `flex-section`). Thả một Heading thẳng vào trang thì:
 
 ```js
-this._onDocumentDragOver = (e) => {
-  if (!useDndStore().dragTarget) return
-  const canvas = this.$refs.canvas
-  const rect = canvas.getBoundingClientRect()
-  const ZONE = 60
-  const SPEED = 14
-  const fromTop = e.clientY - rect.top
-  const fromBottom = rect.bottom - e.clientY
-  if (fromTop < ZONE && fromTop > 0) {
-    canvas.scrollTop -= SPEED * (1 - fromTop / ZONE)
-  } else if (fromBottom < ZONE && fromBottom > 0) {
-    canvas.scrollTop += SPEED * (1 - fromBottom / ZONE)
-  }
-}
-document.addEventListener('dragover', this._onDocumentDragOver)
+// addNodeTree
+const treeToInsert = parentIsRoot && !treeRootIsRootOnly
+  ? wrapInBlankSection(tree)   // tạo flex-section rỗng, nhét tree vào trong
+  : tree
 ```
 
-Gradient `1 - fromTop/ZONE` → càng gần mép càng scroll nhanh. Không re-render Vue, chỉ mutate `scrollTop`.
+`move()` cũng có nhánh tương ứng: kéo một node lên cấp trang sẽ tự sinh section bọc quanh.
 
-`beforeUnmount` remove listener.
+Kết quả: người dùng không bao giờ tạo được node lơ lửng ngoài section.
 
-## 8. Common gotchas
+---
 
-### Drop outside canvas vẫn apply
+## 7. Toàn bộ luật chặn thả
 
-**Symptom:** Drag từ sidebar, nhả chuột ngoài cửa sổ → element vẫn được tạo.
+| Luật | Khai ở đâu | Chặn ở đâu |
+|---|---|---|
+| Chỉ sống ở cấp trang | `meta.rules.isRootOnly` | `Positioner.isDroppable`, `move`, `addNodeTree` |
+| Cha giới hạn loại con | `meta.rules.nodeChildAllows: ['list-item']` | `getNodeChildAllows` → `isDroppable`, `move`, `addNodeTree` |
+| Node cấu trúc, không kéo/xóa riêng | `meta.rules.locked` | `move`, `remove`, `duplicate`, `onMoveDragStart`, `nodeAttrs.draggable` |
+| Luật tự do theo cha | `meta.rules.canDropInto(parentType)` | helper `canDropInto` |
+| Không thả vào chính mình / con cháu | — | `move` kiểm tra vòng lặp |
+| Không thả khi đang inline-edit | — | `onMoveDragStart` kiểm tra `isEditing` |
 
-**Cause:** Positioner cài window dragover preventDefault → dragend fire với indicator còn nguyên.
+`move()` còn có chốt "cùng chỗ thì thôi": nếu node được thả về đúng vị trí cũ, hàm return sớm để không tạo entry history vô nghĩa.
 
-**Fix:** `endDrag(e)` check `dropInsideCanvas` bằng `e.clientX/Y` vs `.wk-editor-body` rect.
+---
 
-### Drag child chọn parent
+## 8. Cây dựng sẵn (composite)
 
-**Symptom:** Drag Heading → ElementToolbar hiện trên Block.
+`ElementDragV2` nhận `NodeTree`, nên một item picker có thể tạo **cả một cụm node**:
 
-**Cause:** dragstart bubble từ Heading lên Block. Block's handler chạy sau và override.
+| Helper | File | Sinh ra |
+|---|---|---|
+| `buildElement(type, overrides)` | `nodeFactory.js` | 1 node từ factory của registry |
+| `buildBlankSection()` | `nodeFactory.js` | `flex-section` rỗng |
+| `buildRowSection(n)` | `nodeFactory.js` | `flex-block` chứa n cột (n≤1 → 1 block) |
+| `buildNestedRowSection()` | `nodeFactory.js` | bố cục lồng nhiều tầng dựng sẵn |
+| `createNodeTree(def)` | `createNode.js` | Cây bất kỳ từ def JSON |
+| `singleDatasetDataDef()` / `multiDatasetDataDef()` | `data/editor_v2/dataset.js` | Thẻ sản phẩm / collection đầy đủ ([chương 11](./11-dataset-binding.md)) |
 
-**Fix:** `e.stopPropagation()` đầu `onMoveDragStart` (đã có sẵn trong `draggableNode`).
+`createNodeTree(def)` là **hợp đồng chuẩn** — cùng một def dùng được cho DnD, template và AI page-gen. Shape:
 
-### Drop satellite từ Tab vào FlexBlock
-
-**Symptom:** Có thể drag `tab-content` ra ngoài Tab → broken layout.
-
-**Cause:** Satellite ngầm draggable=true.
-
-**Fix:** `tab_content/meta.js` set `rules.locked: true` → `onMoveDragStart` return ngay; thêm rule chỉ cho phép sống trong `tab` owner. Có thể bổ sung `canDropInto(parent) => parent === 'tab'` cho an toàn.
-
-### Drag flex-section vào flex-block không bị chặn ở UI
-
-**Cause:** Positioner `isDraggingRootOnly()` không nhận diện đúng. Check `meta.rules.isRootOnly: true` cho Section.
-
-**Verify:**
 ```js
-import('@/composable/editor_v2/registry').then(r => console.log(r.isRootOnlyType('flex-section')))  // phải true
+{ type, name?, style?, config?, specials?, events?, bindings?,
+  states?, isCanvas?, hidden?, custom?, satellite?, children?: [ …def ] }
 ```
 
-### Border-top doubled khi drop-active
+Trong lúc đi cây, `createNodeTree` còn tự dựng **satellite** cho những type có khai `meta.satellite`, và gán id satellite vào `config[configKey]` của owner.
 
-**Symptom:** Empty container có border placeholder + vạch indicator top → 2 đường chồng.
+---
 
-**Fix:** `IndicatorOverlay.show` ẩn khi `parent.data.nodes.length === 0` (placeholder đã đủ).
+## 9. Bảng debug nhanh
+
+| Triệu chứng | Kiểm tra |
+|---|---|
+| Kéo không thấy vạch định vị | Container gốc có mixin `nodeContainer` chưa? Có bind `dropListeners` vào `v-on` chưa? |
+| Kéo con lại chọn nhầm cha | Thiếu `e.stopPropagation()` trong `dragstart`, hoặc `draggable` bị gán sai thẻ |
+| Luôn thả ra ngoài container | Container quá nhỏ → toàn vùng viền; xem lại `isNearBorders` và chiều cao thật của nó |
+| Thả xong không có gì xuất hiện | `indicator.error` có giá trị (xem `nodeStore.events.indicator`), hoặc `nodeChildAllows` chặn |
+| Node lơ lửng ngoài section | Đang gọi `addNodeTree` với `parentId` khác ROOT nên không kích hoạt auto-wrap |
+| Kéo item picker mà `tree` rỗng | Prop `tree` truyền object cố định thay vì hàm → id trùng nhau giữa các lần kéo |

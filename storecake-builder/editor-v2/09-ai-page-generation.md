@@ -1,6 +1,10 @@
 # 09 — AI Page Generation
 
 > **STATUS: IMPLEMENTED (FE pipeline) + BE in spec** — Phase 1 pipeline FE đã có đủ ở `composable/editor_v2/ai/` (13 module). BE Elixir partner đang implement theo `composable/editor_v2/ai/BACKEND_PLAN.md`. Phase 2/3 còn ở backlog.
+>
+> **Cập nhật 2026-07-31**: 13 module trong `ai/` **không đổi** so với lần viết trước, nội dung chương này vẫn đúng. Hai điểm cần lưu ý sau khi hệ dataset ra đời:
+> - `schema.js` glob `nodes/*/meta.js` nên **tự động** thấy 20 element dataset mới; element nào chưa có `ai.js` thì LLM chỉ nhận schema, không có hint.
+> - `validate.js` chưa biết về namespace `bindings` (`FORBIDDEN` hiện là `['id','parent','nodes','responsive','dom']`) — def do AI sinh mà có `bindings` sẽ **đi lọt** mà không được kiểm tra. Xem [chương 11](./11-dataset-binding.md) cho hình dạng đúng của `bindings`.
 
 Tài liệu này mô tả pipeline AI gen hiện tại + contracts + cách extend.
 
