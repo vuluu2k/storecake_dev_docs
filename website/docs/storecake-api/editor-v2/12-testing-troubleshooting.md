@@ -1,6 +1,6 @@
 ---
 sidebar_position: 13
-title: "12 — Test, debug & troubleshooting"
+title: 12 — Test, debug & troubleshooting
 ---
 
 # 12 — Test, debug & troubleshooting

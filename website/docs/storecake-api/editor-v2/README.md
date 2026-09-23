@@ -1,6 +1,6 @@
 ---
 sidebar_position: 1
-title: "Editor V2 & Render V2 (API) — Bắt đầu từ đây"
+title: Editor V2 & Render V2 (API) — Bắt đầu từ đây
 ---
 
 # Editor V2 & Render V2 (API) — Bắt đầu từ đây

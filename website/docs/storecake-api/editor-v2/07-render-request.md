@@ -1,6 +1,6 @@
 ---
 sidebar_position: 8
-title: "07 — Luồng render một request"
+title: 07 — Luồng render một request
 ---
 
 # 07 — Luồng render một request

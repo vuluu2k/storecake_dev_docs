@@ -1,6 +1,6 @@
 ---
 sidebar_position: 6
-title: "05 — Bindings (dữ liệu động)"
+title: 05 — Bindings (dữ liệu động)
 ---
 
 # 05 — Bindings (dữ liệu động)

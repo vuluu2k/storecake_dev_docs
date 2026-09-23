@@ -1,6 +1,6 @@
 ---
 sidebar_position: 2
-title: "01 — Mô hình dữ liệu"
+title: 01 — Mô hình dữ liệu
 ---
 
 # 01 — Mô hình dữ liệu

@@ -1,6 +1,6 @@
 ---
 sidebar_position: 5
-title: "04 — Gán template & trang động"
+title: 04 — Gán template & trang động
 ---
 
 # 04 — Gán template & trang động

@@ -1,6 +1,6 @@
 ---
 sidebar_position: 12
-title: "11 — Thêm một element mới (end-to-end phía API)"
+title: 11 — Thêm một element mới (end-to-end phía API)
 ---
 
 # 11 — Thêm một element mới (end-to-end phía API)

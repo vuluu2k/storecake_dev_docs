@@ -1,6 +1,6 @@
 ---
 sidebar_position: 4
-title: "03 — Global Sections & Global Nodes"
+title: 03 — Global Sections & Global Nodes
 ---
 
 # 03 — Global Sections & Global Nodes

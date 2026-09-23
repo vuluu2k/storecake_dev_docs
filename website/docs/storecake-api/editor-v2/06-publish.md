@@ -1,6 +1,6 @@
 ---
 sidebar_position: 7
-title: "06 — Publish"
+title: 06 — Publish
 ---
 
 # 06 — Publish
