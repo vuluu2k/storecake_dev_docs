@@ -2,7 +2,7 @@
 
 Team dùng một biến thể nhẹ của Git Flow: ba branch dài hạn và các branch feature ngắn hạn.
 
-<figure><img src=".gitbook/assets/image.png" alt=""><figcaption>Tổng quan quy trình Git</figcaption></figure>
+<figure><img src=".gitbook/assets/image.png" alt="" /><figcaption>Tổng quan quy trình Git</figcaption></figure>
 
 ## Branch dài hạn
 
@@ -27,9 +27,9 @@ Team dùng một biến thể nhẹ của Git Flow: ba branch dài hạn và cá
    - Mở PR từ branch tích hợp của bạn vào `develop`.
    - Link issue liên quan trong mô tả PR và tham chiếu issue ID trong commit message dạng `#<issue_id>` (ví dụ `feat(builder): add product search #1234`).
 
-<figure><img src=".gitbook/assets/Screenshot 2025-07-26 at 11.45.14.png" alt=""><figcaption>Ví dụ Pull Request 1</figcaption></figure>
+<figure><img src=".gitbook/assets/Screenshot 2025-07-26 at 11.45.14.png" alt="" /><figcaption>Ví dụ Pull Request 1</figcaption></figure>
 
-<figure><img src=".gitbook/assets/Screenshot 2025-07-26 at 11.40.27.png" alt=""><figcaption>Ví dụ Pull Request 2</figcaption></figure>
+<figure><img src=".gitbook/assets/Screenshot 2025-07-26 at 11.40.27.png" alt="" /><figcaption>Ví dụ Pull Request 2</figcaption></figure>
 
 ## Quy ước commit message
 
