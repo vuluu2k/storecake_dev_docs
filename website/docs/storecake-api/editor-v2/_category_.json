@@ -1,0 +1,9 @@
+{
+  "label": "Editor V2 & Render V2",
+  "position": 20,
+  "link": {
+    "type": "generated-index",
+    "title": "Editor V2 & Render V2 (API)",
+    "description": "Backend của Editor V2: API editor, publish, render QwikV2 + runtime JS render_v2"
+  }
+}
