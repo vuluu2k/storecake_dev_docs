@@ -141,7 +141,7 @@ Tra cứu nhanh mọi thuật ngữ xuất hiện trong code Editor V2.
 | Thuật ngữ | Nghĩa |
 |---|---|
 | **`PatchRecorder`** | Vừa mutate state vừa thu cặp (forward, inverse) |
-| **Patch** | `{ op: 'set'|'unset'|'insert'|'remove', path, value?, index? }` |
+| **Patch** | `{ op: 'set'\|'unset'\|'insert'\|'remove', path, value?, index? }` |
 | **`_commit`** | Chokepoint duy nhất ghi state trong node store |
 | **Coalesce key** | Khóa gộp; cùng key trong cửa sổ throttle ⇒ một entry |
 | **Throttle** | Mặc định 300ms (`defaultThrottleMs`) |
